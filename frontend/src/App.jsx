@@ -4,6 +4,7 @@ import Login from './pages/Login'
 import Register from './pages/Register'
 import Board from './pages/Board'
 import Projects from './pages/Projects'
+import CreateProject from './pages/CreateProject'
 
 export default function App(){
   return (
@@ -13,6 +14,7 @@ export default function App(){
           <h1 className="font-bold">TaskLink</h1>
           <nav className="flex gap-4">
             <Link to="/projects">Projects</Link>
+            <Link to="/create-project">New</Link>
             <Link to="/">Sign in</Link>
           </nav>
         </div>
@@ -22,6 +24,7 @@ export default function App(){
           <Route path="/" element={<Login/>} />
           <Route path="/register" element={<Register/>} />
           <Route path="/projects" element={<Projects/>} />
+          <Route path="/create-project" element={<CreateProject/>} />
           <Route path="/board/:projectId" element={<Board/>} />
         </Routes>
       </main>
