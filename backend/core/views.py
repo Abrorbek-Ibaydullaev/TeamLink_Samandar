@@ -1,7 +1,10 @@
 from rest_framework import viewsets, permissions
-from .models import Workspace, Project, Column, Task, Comment, ChatMessage
+from .models import Workspace, Project, Column, Task, Comment, ChatMessage, FileAttachment, Notification
 from .serializers import WorkspaceSerializer, ProjectSerializer, ColumnSerializer, TaskSerializer, CommentSerializer, ChatMessageSerializer
 from .serializers import RegisterSerializer, UserSerializer
+from .file_serializers import FileAttachmentSerializer
+from .notification_serializers import NotificationSerializer
+from .search_export_views import SearchViewSet, ExportViewSet, NotificationViewSet
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
@@ -22,6 +25,13 @@ class RegisterAPIView(APIView):
                 'access': str(refresh.access_token),
             }, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class UserDetailAPIView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        return Response(UserSerializer(request.user).data)
 
 
 class WorkspaceViewSet(viewsets.ModelViewSet):
@@ -76,3 +86,12 @@ class ChatMessageViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = ChatMessage.objects.order_by('timestamp')
     serializer_class = ChatMessageSerializer
     permission_classes = [permissions.IsAuthenticated]
+
+
+class FileUploadViewSet(viewsets.ModelViewSet):
+    queryset = FileAttachment.objects.all()
+    serializer_class = FileAttachmentSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def perform_create(self, serializer):
+        serializer.save(uploaded_by=self.request.user)

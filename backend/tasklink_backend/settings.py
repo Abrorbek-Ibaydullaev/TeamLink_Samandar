@@ -53,14 +53,21 @@ TEMPLATES = [
 
 ASGI_APPLICATION = 'tasklink_backend.asgi.application'
 
+# DATABASES = {
+#     'default': {
+#         'ENGINE': 'django.db.backends.mysql',
+#         'HOST': os.environ.get('MYSQL_HOST', 'db'),
+#         'PORT': os.environ.get('MYSQL_PORT', '3306'),
+#         'NAME': os.environ.get('MYSQL_DATABASE', 'tasklink'),
+#         'USER': os.environ.get('MYSQL_USER', 'tasklink'),
+#         'PASSWORD': os.environ.get('MYSQL_PASSWORD', 'tasklink'),
+#     }
+# }
+
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.mysql',
-        'HOST': os.environ.get('MYSQL_HOST', 'db'),
-        'PORT': os.environ.get('MYSQL_PORT', '3306'),
-        'NAME': os.environ.get('MYSQL_DATABASE', 'tasklink'),
-        'USER': os.environ.get('MYSQL_USER', 'tasklink'),
-        'PASSWORD': os.environ.get('MYSQL_PASSWORD', 'tasklink'),
+        'ENGINE': 'django.db.backends.sqlite3',
+        'NAME': BASE_DIR / 'db.sqlite3',
     }
 }
 
