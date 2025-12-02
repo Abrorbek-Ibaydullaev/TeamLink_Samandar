@@ -36,6 +36,18 @@ class WorkspaceViewSet(viewsets.ModelViewSet):
             return [IsWorkspaceAdmin()]
         return super().get_permissions()
 
+    def perform_create(self, serializer):
+        """Create workspace and add owner as member"""
+        workspace = serializer.save(owner=self.request.user)
+
+        # Create owner membership
+        Membership.objects.create(
+            user=self.request.user,
+            workspace=workspace,
+            role='owner',
+            is_active=True
+        )
+
     @action(detail=False, methods=['post'])
     def join(self, request):
         """Join workspace using invite code"""

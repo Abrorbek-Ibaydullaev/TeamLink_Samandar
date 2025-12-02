@@ -34,20 +34,21 @@ INSTALLED_APPS = [
     'django_filters',
 
     # Local apps
-    # 'apps.authentication',
-    # 'apps.workspaces',
-    # 'apps.projects',
-    # 'apps.tasks',
-    # 'apps.chat',
-    # 'apps.files',
-    # 'apps.notifications',
-    # 'apps.activity',
+    'apps.authentication',
+    'apps.workspaces',
+    'apps.projects',
+    'apps.tasks',
+    'apps.chat',
+    'apps.files',
+    'apps.notifications',
+    'apps.activity',
 
 ]
-
+AUTH_USER_MODEL = "authentication.User"
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
+    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
@@ -78,20 +79,28 @@ ASGI_APPLICATION = 'config.asgi.application'
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
+# DATABASES = {
+#     'default': {
+#         'ENGINE': config('DB_ENGINE', default='django.db.backends.mysql'),
+#         'NAME': config('DB_NAME', default='tasklink_db'),
+#         'USER': config('DB_USER', default='tasklink_user'),
+#         'PASSWORD': config('DB_PASSWORD', default='tasklink_pass'),
+#         'HOST': config('DB_HOST', default='localhost'),
+#         'PORT': config('DB_PORT', default='3306'),
+#         'OPTIONS': {
+#             'init_command': "SET sql_mode='STRICT_TRANS_TABLES'",
+#             'charset': 'utf8mb4',
+#         },
+#     }
+# }
+
 DATABASES = {
     'default': {
-        'ENGINE': config('DB_ENGINE', default='django.db.backends.mysql'),
-        'NAME': config('DB_NAME', default='tasklink_db'),
-        'USER': config('DB_USER', default='tasklink_user'),
-        'PASSWORD': config('DB_PASSWORD', default='tasklink_pass'),
-        'HOST': config('DB_HOST', default='localhost'),
-        'PORT': config('DB_PORT', default='3306'),
-        'OPTIONS': {
-            'init_command': "SET sql_mode='STRICT_TRANS_TABLES'",
-            'charset': 'utf8mb4',
-        },
+        'ENGINE': 'django.db.backends.sqlite3',
+        'NAME': BASE_DIR / 'db.sqlite3',
     }
 }
+
 CHANNEL_LAYERS = {
     'default': {
         'BACKEND': 'channels_redis.core.RedisChannelLayer',
@@ -116,7 +125,11 @@ AUTH_PASSWORD_VALIDATORS = [
     },
 ]
 
-
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:5173",
+    "http://localhost:3000",
+]
+CORS_ALLOW_CREDENTIALS = True
 # Internationalization
 # https://docs.djangoproject.com/en/5.2/topics/i18n/
 
@@ -182,7 +195,7 @@ SIMPLE_JWT = {
 # CORS settings
 CORS_ALLOWED_ORIGINS = config(
     'CORS_ALLOWED_ORIGINS',
-    default='http://localhost:3000,http://localhost:5173'
+    default='http://localhost:3000,http://localhost:5173,http://localhost:5174'
 ).split(',')
 CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOW_HEADERS = [
