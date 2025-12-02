@@ -18,6 +18,7 @@ from .serializers import (
 )
 from apps.workspaces.models import Membership
 from apps.activity.models import ActivityLog
+from apps.tasks.models import Task
 
 User = get_user_model()
 
@@ -242,6 +243,85 @@ class ProjectViewSet(viewsets.ModelViewSet):
             return Response({
                 'error': 'Project member not found'
             }, status=status.HTTP_404_NOT_FOUND)
+
+    @action(detail=False, methods=['get'])
+    def dashboard(self, request):
+        """Get dashboard stats for the current user"""
+        user = request.user
+
+        # Get projects the user is part of
+        projects = Project.objects.filter(
+            workspace__memberships__user=user,
+            workspace__memberships__is_active=True,
+            is_archived=False
+        ).distinct()
+
+        # Get active tasks assigned to user
+        active_tasks = Task.objects.filter(
+            assignee=user,
+            status__in=['todo', 'in-progress', 'review']
+        ).select_related('project', 'column')[:10]
+
+        # Get total stats
+        total_tasks = Task.objects.filter(
+            project__workspace__memberships__user=user,
+            project__workspace__memberships__is_active=True
+        )
+
+        tasks_in_progress = total_tasks.filter(status='in-progress').count()
+        total_completed = total_tasks.filter(status='done').count()
+        total_active = total_tasks.filter(
+            status__in=['todo', 'in-progress', 'review']).count()
+
+        # Get team members count
+        team_members = User.objects.filter(
+            memberships__workspace__projects=projects,
+            memberships__is_active=True
+        ).distinct().count()
+
+        # Get recent projects
+        recent_projects = projects.order_by('-created_at')[:3]
+
+        # Get recent activity
+        from apps.activity.models import ActivityLog
+        recent_activities = ActivityLog.objects.filter(
+            user=user
+        ).select_related('user', 'workspace', 'project').order_by('-created_at')[:5]
+
+        # Format response
+        dashboard_data = {
+            'stats': {
+                'active_tasks': total_active,
+                'team_members': team_members,
+                'projects': projects.count(),
+                'completed_tasks': total_completed,
+                'tasks_in_progress': tasks_in_progress,
+            },
+            'active_projects': ProjectSerializer(recent_projects, many=True).data,
+            'active_tasks': [
+                {
+                    'id': str(task.id),
+                    'title': task.title,
+                    'project': task.project.name,
+                    'priority': task.priority,
+                    'status': task.status,
+                    'due_date': task.due_date,
+                }
+                for task in active_tasks
+            ],
+            'recent_activity': [
+                {
+                    'id': str(activity.id),
+                    'user': activity.user.full_name or activity.user.email,
+                    'action': activity.action,
+                    'item': activity.description,
+                    'created_at': activity.created_at,
+                }
+                for activity in recent_activities
+            ],
+        }
+
+        return Response(dashboard_data)
 
 
 class ColumnViewSet(viewsets.ModelViewSet):

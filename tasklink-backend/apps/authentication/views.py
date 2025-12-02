@@ -1,3 +1,5 @@
+from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework.views import APIView
 from rest_framework import generics, status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
@@ -37,6 +39,32 @@ class RegisterView(generics.CreateAPIView):
 class CustomTokenObtainPairView(TokenObtainPairView):
     """Custom login endpoint with user info"""
     serializer_class = CustomTokenObtainPairSerializer
+
+
+class EmailLoginView(APIView):
+    """Login with email + password and return JWT tokens and user info"""
+    permission_classes = [AllowAny]
+
+    def post(self, request, *args, **kwargs):
+        email = request.data.get('email') or request.data.get('username')
+        password = request.data.get('password')
+        if not email or not password:
+            return Response({'detail': 'Email and password are required.'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            user = User.objects.get(email__iexact=email)
+        except User.DoesNotExist:
+            return Response({'detail': 'Invalid credentials.'}, status=status.HTTP_401_UNAUTHORIZED)
+
+        if not user.check_password(password):
+            return Response({'detail': 'Invalid credentials.'}, status=status.HTTP_401_UNAUTHORIZED)
+
+        refresh = RefreshToken.for_user(user)
+        data = {
+            'access': str(refresh.access_token),
+            'refresh': str(refresh),
+            'user': UserSerializer(user).data
+        }
+        return Response(data, status=status.HTTP_200_OK)
 
 
 class UserProfileView(generics.RetrieveUpdateAPIView):

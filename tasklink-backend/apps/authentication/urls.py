@@ -2,6 +2,7 @@ from django.urls import path
 from .views import (
     RegisterView,
     CustomTokenObtainPairView,
+    EmailLoginView,
     UserProfileView,
     UserProfileUpdateView,
     PasswordChangeView,
@@ -12,7 +13,8 @@ from .views import (
 
 urlpatterns = [
     path('register/', RegisterView.as_view(), name='register'),
-    path('login/', CustomTokenObtainPairView.as_view(), name='login'),
+    # Use email-based login view
+    path('login/', EmailLoginView.as_view(), name='login'),
     path('logout/', logout_view, name='logout'),
     path('profile/', UserProfileView.as_view(), name='profile'),
     path('profile/update/', UserProfileUpdateView.as_view(), name='profile-update'),
