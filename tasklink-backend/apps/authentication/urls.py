@@ -10,6 +10,10 @@ from .views import (
     logout_view,
     search_users
 )
+from rest_framework_simplejwt.views import (
+    TokenObtainPairView,
+    TokenRefreshView,
+)
 
 urlpatterns = [
     path('register/', RegisterView.as_view(), name='register'),

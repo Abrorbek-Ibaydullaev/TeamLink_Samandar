@@ -5,11 +5,11 @@ from .views import WorkspaceViewSet
 from apps.projects.views import ProjectViewSet
 
 router = DefaultRouter()
-router.register(r'workspaces', WorkspaceViewSet, basename='workspace')
+router.register(r'', WorkspaceViewSet, basename='workspace')
 
 # Nested router for projects within workspaces
 workspaces_router = routers.NestedDefaultRouter(
-    router, r'workspaces', lookup='workspace')
+    router, r'', lookup='workspace')
 workspaces_router.register(r'projects', ProjectViewSet,
                            basename='workspace-projects')
 

@@ -1,67 +1,94 @@
-import React, { useState, useEffect } from 'react'
-import { Routes, Route, Navigate } from 'react-router-dom'
+import React, { useState } from 'react'
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { AuthProvider } from './context/AuthContext'
 import Home from './pages/Home'
 import Login from './pages/Login'
 import Register from './pages/Register'
-import Board from './pages/Board'
+import Dashboard from './pages/Dashboard'
+import Workspaces from './pages/Workspaces'
+import CreateWorkspace from './pages/CreateWorkspace'
 import Projects from './pages/Projects'
 import CreateProject from './pages/CreateProject'
-import Dashboard from './pages/Dashboard'
+import Board from './pages/Board'
+// ... your existing imports ...
 
 // Protected Route Component
-function ProtectedRoute({ children }) {
-  const isAuthenticated = localStorage.getItem('isAuthenticated') === 'true'
-  
-  if (!isAuthenticated) {
-    return <Navigate to="/login" replace />
-  }
-  
-  return children
+const ProtectedRoute = ({ children }) => {
+  const token = localStorage.getItem('access_token')
+  return token ? children : <Navigate to="/login" replace />
 }
 
-export default function App() {
-  const [darkMode, setDarkMode] = useState(() => {
-    // Load dark mode preference from localStorage
-    const saved = localStorage.getItem('darkMode')
-    return saved !== null ? saved === 'true' : true
-  })
-
-  // Save dark mode preference
-  useEffect(() => {
-    localStorage.setItem('darkMode', darkMode)
-  }, [darkMode])
+function App() {
+  const [darkMode, setDarkMode] = useState(true)
 
   return (
-    <Routes>
-      {/* Public Routes */}
-      <Route path="/" element={<Home darkMode={darkMode} />} />
-      <Route path="/login" element={<Login darkMode={darkMode} />} />
-      <Route path="/register" element={<Register darkMode={darkMode} />} />
+    <AuthProvider>  {/* ← ADD THIS WRAPPER */}
+      <BrowserRouter>
+        <Routes>
+          {/* Your existing routes */}
+          <Route path="/" element={<Home darkMode={darkMode} setDarkMode={setDarkMode} />} />
+          <Route path="/login" element={<Login darkMode={darkMode} />} />
+          <Route path="/register" element={<Register darkMode={darkMode} />} />
+          
+          <Route
+            path="/dashboard"
+            element={
+              <ProtectedRoute>
+                <Dashboard darkMode={darkMode} setDarkMode={setDarkMode} />
+              </ProtectedRoute>
+            }
+          />
+          
+          <Route
+            path="/workspaces"
+            element={
+              <ProtectedRoute>
+                <Workspaces darkMode={darkMode} setDarkMode={setDarkMode} />
+              </ProtectedRoute>
+            }
+          />
 
-      {/* Protected Routes - Require authentication */}
-      <Route path="/dashboard" element={
-        <ProtectedRoute>
-          <Dashboard darkMode={darkMode} setDarkMode={setDarkMode} />
-        </ProtectedRoute>
-      } />
-      <Route path="/projects" element={
-        <ProtectedRoute>
-          <Projects darkMode={darkMode} setDarkMode={setDarkMode} />
-        </ProtectedRoute>
-      } />
-      <Route path="/create-project" element={
-        <ProtectedRoute>
-          <CreateProject darkMode={darkMode} setDarkMode={setDarkMode} />
-        </ProtectedRoute>
-      } />
-      <Route path="/board/:projectId" element={
-        <ProtectedRoute>
-          <Board darkMode={darkMode} setDarkMode={setDarkMode} />
-        </ProtectedRoute>
-      } />
+          <Route
+            path="/workspaces/create"
+            element={
+              <ProtectedRoute>
+                <CreateWorkspace darkMode={darkMode} setDarkMode={setDarkMode} />
+              </ProtectedRoute>
+            }
+          />
 
-      {/* Catch all - redirect to home */}
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+          <Route
+            path="/workspaces/:workspaceId/projects"
+            element={
+              <ProtectedRoute>
+                <Projects darkMode={darkMode} setDarkMode={setDarkMode} />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/workspaces/:workspaceId/projects/create"
+            element={
+              <ProtectedRoute>
+                <CreateProject darkMode={darkMode} setDarkMode={setDarkMode} />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/workspaces/:workspaceId/projects/:projectId"
+            element={
+              <ProtectedRoute>
+                <Board darkMode={darkMode} setDarkMode={setDarkMode} />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </BrowserRouter>
+    </AuthProvider> 
   )
 }
+
+export default App

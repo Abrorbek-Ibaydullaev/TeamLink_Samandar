@@ -52,21 +52,21 @@ class WorkspaceCreateSerializer(serializers.ModelSerializer):
         model = Workspace
         fields = ['name', 'description', 'workspace_type']
 
-    def create(self, validated_data):
-        request = self.context.get('request')
-        workspace = Workspace.objects.create(
-            owner=request.user,
-            **validated_data
-        )
+    # def create(self, validated_data):
+        # request = self.context.get('request')
+        # workspace = Workspace.objects.create(
+        #     owner=request.user,
+        #     **validated_data
+        # )
 
-        # Add owner as admin member
-        Membership.objects.create(
-            user=request.user,
-            workspace=workspace,
-            role='owner'
-        )
+        # # Add owner as admin member
+        # Membership.objects.create(
+        #     user=request.user,
+        #     workspace=workspace,
+        #     role='owner'
+        # )
 
-        return workspace
+        # return workspace
 
 
 class WorkspaceInviteSerializer(serializers.Serializer):

@@ -1,21 +1,29 @@
-import React, { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import React, { useState, useEffect } from 'react'
+import { useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, Plus, X, Calendar, Users, Tag } from 'lucide-react'
 import Layout from '../components/Layout'
+import { projectService } from '../services/projectService'  // ADD THIS
+import { workspaceService } from '../services/workspaceService'  // ADD THIS
+import { useAuth } from '../context/AuthContext'  // ADD THIS
 
 export default function CreateProject({ darkMode = true, setDarkMode }) {
   const navigate = useNavigate()
+  const { workspaceId } = useParams()  // Get workspace ID from URL
+  const { user } = useAuth()  // Get current user
+  
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+  const [workspaceMembers, setWorkspaceMembers] = useState([])  // Changed from teamMembers
   const [formData, setFormData] = useState({
     name: '',
     description: '',
-    dueDate: '',
-    priority: 'medium',
-    color: 'from-blue-500 to-purple-500',
+    color: '#3B82F6',  // Changed to hex color
+    icon: '📊',  // Default icon
+    is_public: false,
   })
-  const [members, setMembers] = useState([])
-  const [tags, setTags] = useState([])
-  const [newTag, setNewTag] = useState('')
+  const [members, setMembers] = useState([])  // Member IDs to add
+  const [labels, setLabels] = useState([])  // Changed from tags
+  const [newLabel, setNewLabel] = useState('')
 
   const cardBg = darkMode ? 'bg-gray-800/50' : 'bg-white'
   const textPrimary = darkMode ? 'text-white' : 'text-gray-900'
@@ -24,53 +32,139 @@ export default function CreateProject({ darkMode = true, setDarkMode }) {
   const inputBg = darkMode ? 'bg-gray-700/50' : 'bg-gray-100'
 
   const colorOptions = [
-    { name: 'Blue Purple', value: 'from-blue-500 to-purple-500' },
-    { name: 'Purple Pink', value: 'from-purple-500 to-pink-500' },
-    { name: 'Green Emerald', value: 'from-green-500 to-emerald-500' },
-    { name: 'Orange Red', value: 'from-orange-500 to-red-500' },
-    { name: 'Cyan Blue', value: 'from-cyan-500 to-blue-500' },
-    { name: 'Pink Rose', value: 'from-pink-500 to-rose-500' },
+    { name: 'Blue', value: '#3B82F6' },
+    { name: 'Purple', value: '#8B5CF6' },
+    { name: 'Green', value: '#10B981' },
+    { name: 'Red', value: '#EF4444' },
+    { name: 'Orange', value: '#F59E0B' },
+    { name: 'Pink', value: '#EC4899' },
+    { name: 'Cyan', value: '#06B6D4' },
+    { name: 'Indigo', value: '#6366F1' },
   ]
 
-  const teamMembers = [
-    { id: 1, name: 'Sarah Johnson', role: 'Designer', avatar: '👩‍🎨' },
-    { id: 2, name: 'Mike Chen', role: 'Developer', avatar: '👨‍💻' },
-    { id: 3, name: 'Emma Davis', role: 'Manager', avatar: '👩‍💼' },
-    { id: 4, name: 'James Wilson', role: 'Developer', avatar: '👨‍💻' },
-    { id: 5, name: 'Lisa Anderson', role: 'Designer', avatar: '👩‍🎨' },
-  ]
+  const iconOptions = ['📊', '🎯', '💼', '🚀', '⭐', '🔥', '💡', '🎨', '📱', '⚡']
+
+  // Fetch workspace members on mount
+  useEffect(() => {
+    const fetchWorkspaceMembers = async () => {
+      if (!workspaceId) {
+        setError('Workspace ID is required')
+        return
+      }
+
+      try {
+        const response = await workspaceService.getMembers(workspaceId)
+        setWorkspaceMembers(response.data.results || response.data)
+      } catch (err) {
+        console.error('Error fetching members:', err)
+        setError('Failed to load workspace members')
+      }
+    }
+
+    fetchWorkspaceMembers()
+  }, [workspaceId])
 
   const handleChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value })
+    const { name, value, type, checked } = e.target
+    setFormData({ 
+      ...formData, 
+      [name]: type === 'checkbox' ? checked : value 
+    })
   }
 
-  const toggleMember = (memberId) => {
+  const toggleMember = (userId) => {
     setMembers((prev) =>
-      prev.includes(memberId)
-        ? prev.filter((id) => id !== memberId)
-        : [...prev, memberId]
+      prev.includes(userId)
+        ? prev.filter((id) => id !== userId)
+        : [...prev, userId]
     )
   }
 
-  const addTag = () => {
-    if (newTag.trim() && !tags.includes(newTag.trim())) {
-      setTags([...tags, newTag.trim()])
-      setNewTag('')
+  const addLabel = () => {
+    if (newLabel.trim() && !labels.some(l => l.name === newLabel.trim())) {
+      labels.push({
+        name: newLabel.trim(),
+        color: colorOptions[Math.floor(Math.random() * colorOptions.length)].value,
+        description: ''
+      })
+      setLabels([...labels])
+      setNewLabel('')
     }
   }
 
-  const removeTag = (tagToRemove) => {
-    setTags(tags.filter((tag) => tag !== tagToRemove))
+  const removeLabel = (labelToRemove) => {
+    setLabels(labels.filter((label) => label.name !== labelToRemove))
   }
 
   const handleSubmit = async (e) => {
     e.preventDefault()
+    setError('')
     setLoading(true)
 
-    setTimeout(() => {
+    // Validation
+    if (!formData.name.trim()) {
+      setError('Project name is required')
       setLoading(false)
-      navigate('/projects')
-    }, 1500)
+      return
+    }
+
+    if (!workspaceId) {
+      setError('Workspace ID is required')
+      setLoading(false)
+      return
+    }
+
+    try {
+      // Create project
+      const projectData = {
+        name: formData.name,
+        description: formData.description,
+        color: formData.color,
+        icon: formData.icon,
+        is_public: formData.is_public,
+      }
+
+      console.log('Creating project:', projectData)
+      const projectResponse = await projectService.create(workspaceId, projectData)
+      const projectId = projectResponse.data.id
+
+      console.log('✅ Project created:', projectId)
+
+      // Add members if selected
+      if (members.length > 0) {
+        console.log('Adding members:', members)
+        for (const userId of members) {
+          try {
+            await projectService.addMember(projectId, userId, 'member')
+          } catch (memberError) {
+            console.error('Error adding member:', userId, memberError)
+          }
+        }
+      }
+
+      // Create labels if any
+      if (labels.length > 0) {
+        console.log('Creating labels:', labels)
+        for (const label of labels) {
+          try {
+            await projectService.createLabel(projectId, label)
+          } catch (labelError) {
+            console.error('Error creating label:', label.name, labelError)
+          }
+        }
+      }
+
+      // Success! Navigate to the project
+      navigate(`/workspaces/${workspaceId}/projects/${projectId}`)
+    } catch (err) {
+      console.error('Error creating project:', err)
+      const errorMsg = err.response?.data?.message || 
+                      err.response?.data?.error ||
+                      'Failed to create project. Please try again.'
+      setError(errorMsg)
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
@@ -90,6 +184,13 @@ export default function CreateProject({ darkMode = true, setDarkMode }) {
             Set up your project details and invite team members
           </p>
         </div>
+
+        {/* Error Message */}
+        {error && (
+          <div className="mb-6 p-4 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 text-sm">
+            {error}
+          </div>
+        )}
 
         <form onSubmit={handleSubmit}>
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6">
@@ -130,60 +231,50 @@ export default function CreateProject({ darkMode = true, setDarkMode }) {
                   />
                 </div>
 
-                {/* Due Date & Priority */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4 md:mb-6">
-                  <div>
-                    <label className={`block text-sm font-medium ${textPrimary} mb-2`}>
-                      <Calendar size={16} className="inline mr-1" />
-                      Due Date
-                    </label>
-                    <input
-                      type="date"
-                      name="dueDate"
-                      value={formData.dueDate}
-                      onChange={handleChange}
-                      className={`w-full px-4 py-3 rounded-xl ${inputBg} border ${borderColor} ${textPrimary} outline-none focus:border-blue-500 transition text-sm md:text-base`}
-                    />
-                  </div>
-
-                  <div>
-                    <label className={`block text-sm font-medium ${textPrimary} mb-2`}>
-                      Priority
-                    </label>
-                    <select
-                      name="priority"
-                      value={formData.priority}
-                      onChange={handleChange}
-                      className={`w-full px-4 py-3 rounded-xl ${inputBg} border ${borderColor} ${textPrimary} outline-none focus:border-blue-500 transition cursor-pointer text-sm md:text-base`}
-                    >
-                      <option value="low">Low</option>
-                      <option value="medium">Medium</option>
-                      <option value="high">High</option>
-                    </select>
+                {/* Icon Selection */}
+                <div className="mb-4 md:mb-6">
+                  <label className={`block text-sm font-medium ${textPrimary} mb-3`}>
+                    Project Icon
+                  </label>
+                  <div className="flex flex-wrap gap-2">
+                    {iconOptions.map((icon) => (
+                      <button
+                        key={icon}
+                        type="button"
+                        onClick={() => setFormData({ ...formData, icon })}
+                        className={`w-12 h-12 rounded-xl border-2 transition text-2xl ${
+                          formData.icon === icon
+                            ? 'border-blue-500 bg-blue-500/10'
+                            : `border-transparent ${inputBg}`
+                        } hover:border-blue-400`}
+                      >
+                        {icon}
+                      </button>
+                    ))}
                   </div>
                 </div>
 
                 {/* Color Theme */}
-                <div>
+                <div className="mb-4 md:mb-6">
                   <label className={`block text-sm font-medium ${textPrimary} mb-3`}>
-                    Project Color Theme
+                    Project Color
                   </label>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                  <div className="grid grid-cols-4 sm:grid-cols-8 gap-3">
                     {colorOptions.map((color) => (
                       <button
                         key={color.value}
                         type="button"
                         onClick={() => setFormData({ ...formData, color: color.value })}
-                        className={`relative p-3 md:p-4 rounded-xl border-2 transition ${
+                        className={`relative w-full aspect-square rounded-xl border-2 transition ${
                           formData.color === color.value
-                            ? 'border-blue-500'
-                            : `border-transparent ${darkMode ? 'hover:border-gray-600' : 'hover:border-gray-300'}`
+                            ? 'border-blue-500 scale-110'
+                            : 'border-transparent hover:scale-105'
                         }`}
+                        style={{ backgroundColor: color.value }}
+                        title={color.name}
                       >
-                        <div className={`h-10 md:h-12 rounded-lg bg-gradient-to-r ${color.value}`}></div>
-                        <p className={`text-xs ${textSecondary} mt-2 text-center`}>{color.name}</p>
                         {formData.color === color.value && (
-                          <div className="absolute top-2 right-2 w-5 h-5 bg-blue-500 rounded-full flex items-center justify-center text-white text-xs">
+                          <div className="absolute inset-0 flex items-center justify-center text-white text-lg">
                             ✓
                           </div>
                         )}
@@ -191,50 +282,70 @@ export default function CreateProject({ darkMode = true, setDarkMode }) {
                     ))}
                   </div>
                 </div>
+
+                {/* Privacy Setting */}
+                <div>
+                  <label className="flex items-center gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      name="is_public"
+                      checked={formData.is_public}
+                      onChange={handleChange}
+                      className="w-5 h-5 rounded border-gray-600 text-blue-500 focus:ring-blue-500"
+                    />
+                    <div>
+                      <p className={`text-sm font-medium ${textPrimary}`}>Public Project</p>
+                      <p className={`text-xs ${textSecondary}`}>
+                        Anyone in the workspace can view this project
+                      </p>
+                    </div>
+                  </label>
+                </div>
               </div>
 
-              {/* Tags */}
+              {/* Labels */}
               <div className={`${cardBg} backdrop-blur-xl border ${borderColor} rounded-xl md:rounded-2xl p-4 md:p-6`}>
                 <h2 className={`text-lg md:text-xl font-semibold ${textPrimary} mb-2 flex items-center gap-2`}>
                   <Tag size={20} />
-                  Tags
+                  Labels
                 </h2>
                 <p className={`text-xs md:text-sm ${textSecondary} mb-4`}>
-                  Add tags to help organize and categorize this project
+                  Add labels to help organize tasks in this project
                 </p>
 
-                {/* Add Tag Input */}
+                {/* Add Label Input */}
                 <div className="flex gap-2 mb-4">
                   <input
                     type="text"
-                    value={newTag}
-                    onChange={(e) => setNewTag(e.target.value)}
-                    onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addTag())}
-                    placeholder="Type a tag and press Enter"
+                    value={newLabel}
+                    onChange={(e) => setNewLabel(e.target.value)}
+                    onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addLabel())}
+                    placeholder="Type a label and press Enter"
                     className={`flex-1 px-4 py-3 rounded-xl ${inputBg} border ${borderColor} ${textPrimary} outline-none focus:border-blue-500 transition text-sm md:text-base`}
                   />
                   <button
                     type="button"
-                    onClick={addTag}
+                    onClick={addLabel}
                     className="px-4 py-3 bg-blue-500 text-white rounded-xl hover:bg-blue-600 transition flex-shrink-0"
                   >
                     <Plus size={20} />
                   </button>
                 </div>
 
-                {/* Tags List */}
-                {tags.length > 0 && (
+                {/* Labels List */}
+                {labels.length > 0 && (
                   <div className="flex flex-wrap gap-2">
-                    {tags.map((tag, idx) => (
+                    {labels.map((label, idx) => (
                       <span
                         key={idx}
-                        className={`inline-flex items-center gap-2 px-3 py-1 rounded-lg ${darkMode ? 'bg-blue-500/20' : 'bg-blue-50'} text-blue-400 text-sm`}
+                        className={`inline-flex items-center gap-2 px-3 py-1 rounded-lg text-white text-sm`}
+                        style={{ backgroundColor: label.color }}
                       >
-                        {tag}
+                        {label.name}
                         <button
                           type="button"
-                          onClick={() => removeTag(tag)}
-                          className="hover:text-red-400 transition"
+                          onClick={() => removeLabel(label.name)}
+                          className="hover:text-red-200 transition"
                         >
                           <X size={14} />
                         </button>
@@ -257,68 +368,89 @@ export default function CreateProject({ darkMode = true, setDarkMode }) {
                   Select team members for this project
                 </p>
 
-                <div className="space-y-2">
-                  {teamMembers.map((member) => (
-                    <label
-                      key={member.id}
-                      className={`flex items-center gap-3 p-3 rounded-xl ${
-                        members.includes(member.id)
-                          ? `${darkMode ? 'bg-blue-500/20' : 'bg-blue-50'} border-blue-500`
-                          : `${darkMode ? 'bg-gray-700/30' : 'bg-gray-50'} border-transparent`
-                      } border-2 cursor-pointer hover:${darkMode ? 'bg-gray-700/50' : 'bg-gray-100'} transition`}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={members.includes(member.id)}
-                        onChange={() => toggleMember(member.id)}
-                        className="w-4 h-4 rounded text-blue-500 focus:ring-blue-500"
-                      />
-                      <div className="flex items-center gap-3 flex-1 min-w-0">
-                        <span className="text-xl md:text-2xl flex-shrink-0">{member.avatar}</span>
-                        <div className="min-w-0 flex-1">
-                          <p className={`text-sm font-medium ${textPrimary} truncate`}>{member.name}</p>
-                          <p className={`text-xs ${textSecondary} truncate`}>{member.role}</p>
+                {workspaceMembers.length === 0 ? (
+                  <p className={`text-sm ${textSecondary} text-center py-4`}>
+                    Loading members...
+                  </p>
+                ) : (
+                  <div className="space-y-2 max-h-96 overflow-y-auto">
+                    {workspaceMembers.map((member) => (
+                      <label
+                        key={member.user?.id || member.id}
+                        className={`flex items-center gap-3 p-3 rounded-xl ${
+                          members.includes(member.user?.id || member.id)
+                            ? `${darkMode ? 'bg-blue-500/20' : 'bg-blue-50'} border-blue-500`
+                            : `${darkMode ? 'bg-gray-700/30' : 'bg-gray-50'} border-transparent`
+                        } border-2 cursor-pointer hover:${darkMode ? 'bg-gray-700/50' : 'bg-gray-100'} transition`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={members.includes(member.user?.id || member.id)}
+                          onChange={() => toggleMember(member.user?.id || member.id)}
+                          className="w-4 h-4 rounded text-blue-500 focus:ring-blue-500"
+                        />
+                        <div className="flex items-center gap-3 flex-1 min-w-0">
+                          <div className={`w-8 h-8 rounded-full ${darkMode ? 'bg-gray-600' : 'bg-gray-300'} flex items-center justify-center text-sm font-semibold`}>
+                            {(member.user?.first_name || member.user?.email || 'U')[0].toUpperCase()}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className={`text-sm font-medium ${textPrimary} truncate`}>
+                              {member.user?.first_name && member.user?.last_name
+                                ? `${member.user.first_name} ${member.user.last_name}`
+                                : member.user?.email}
+                            </p>
+                            <p className={`text-xs ${textSecondary} truncate capitalize`}>
+                              {member.role}
+                            </p>
+                          </div>
                         </div>
-                      </div>
-                    </label>
-                  ))}
-                </div>
+                      </label>
+                    ))}
+                  </div>
+                )}
               </div>
 
               {/* Preview */}
               <div className={`${cardBg} backdrop-blur-xl border ${borderColor} rounded-xl md:rounded-2xl p-4 md:p-6 hidden sm:block`}>
                 <h2 className={`text-lg md:text-xl font-semibold ${textPrimary} mb-4`}>Preview</h2>
                 <div className={`p-4 rounded-xl ${darkMode ? 'bg-gray-700/30' : 'bg-gray-50'} relative overflow-hidden`}>
-                  <div className={`absolute top-0 right-0 w-24 h-24 bg-gradient-to-br ${formData.color} opacity-20 rounded-full blur-2xl`}></div>
+                  <div 
+                    className="absolute top-0 right-0 w-24 h-24 opacity-20 rounded-full blur-2xl"
+                    style={{ backgroundColor: formData.color }}
+                  ></div>
                   <div className="relative">
-                    <h3 className={`font-semibold ${textPrimary} mb-2 text-sm md:text-base`}>
-                      {formData.name || 'Project Name'}
-                    </h3>
+                    <div className="flex items-center gap-3 mb-3">
+                      <div 
+                        className="w-10 h-10 rounded-lg flex items-center justify-center text-2xl"
+                        style={{ backgroundColor: `${formData.color}20` }}
+                      >
+                        {formData.icon}
+                      </div>
+                      <h3 className={`font-semibold ${textPrimary} text-sm md:text-base`}>
+                        {formData.name || 'Project Name'}
+                      </h3>
+                    </div>
                     <p className={`text-xs md:text-sm ${textSecondary} mb-3 line-clamp-2`}>
                       {formData.description || 'Project description will appear here'}
                     </p>
-                    <div className="flex items-center gap-2 mb-3">
-                      <span className={`text-xs px-2 py-1 rounded ${
-                        formData.priority === 'high' ? 'bg-red-500/20 text-red-400' :
-                        formData.priority === 'medium' ? 'bg-yellow-500/20 text-yellow-400' :
-                        'bg-green-500/20 text-green-400'
-                      }`}>
-                        {formData.priority} priority
-                      </span>
-                    </div>
                     {members.length > 0 && (
                       <div className="flex -space-x-2">
                         {members.slice(0, 4).map((memberId) => {
-                          const member = teamMembers.find((m) => m.id === memberId)
+                          const member = workspaceMembers.find((m) => (m.user?.id || m.id) === memberId)
                           return (
                             <div
                               key={memberId}
-                              className={`w-7 h-7 md:w-8 md:h-8 rounded-full ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} border-2 ${darkMode ? 'border-gray-800' : 'border-white'} flex items-center justify-center text-sm`}
+                              className={`w-7 h-7 md:w-8 md:h-8 rounded-full ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} border-2 ${darkMode ? 'border-gray-800' : 'border-white'} flex items-center justify-center text-xs font-semibold`}
                             >
-                              {member.avatar}
+                              {(member?.user?.first_name || member?.user?.email || 'U')[0].toUpperCase()}
                             </div>
                           )
                         })}
+                        {members.length > 4 && (
+                          <div className={`w-7 h-7 md:w-8 md:h-8 rounded-full ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} border-2 ${darkMode ? 'border-gray-800' : 'border-white'} flex items-center justify-center text-xs font-semibold`}>
+                            +{members.length - 4}
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
@@ -347,7 +479,8 @@ export default function CreateProject({ darkMode = true, setDarkMode }) {
                 <button
                   type="button"
                   onClick={() => navigate(-1)}
-                  className={`w-full py-3 rounded-xl ${inputBg} ${textSecondary} hover:${textPrimary} transition font-medium text-sm md:text-base`}
+                  disabled={loading}
+                  className={`w-full py-3 rounded-xl ${inputBg} ${textSecondary} hover:${textPrimary} transition font-medium text-sm md:text-base disabled:opacity-50`}
                 >
                   Cancel
                 </button>
