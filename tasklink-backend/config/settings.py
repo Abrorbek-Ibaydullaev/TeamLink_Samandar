@@ -16,7 +16,8 @@ DEBUG = config('DEBUG', default=False, cast=bool)
 ALLOWED_HOSTS = [
     'localhost',
     '127.0.0.1',
-    '.railway.app',  # Allows all Railway domains
+    '*.railway.app',  # Allows all Railway domains
+    'https://*.up.railway.app',
     'teamlink2.vercel.app',
 ]
 
