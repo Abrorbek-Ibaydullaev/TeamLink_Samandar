@@ -1,5 +1,1 @@
-<<<<<<< HEAD
-web: python manage.py migrate && gunicorn config.wsgi:application --bind 0.0.0.0:$PORT
-=======
 web: gunicorn config.wsgi:application --bind 0.0.0.0:$PORT --workers 2 --timeout 120
->>>>>>> parent of e7c1bc1 (still working on procfile)
