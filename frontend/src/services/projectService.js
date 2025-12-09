@@ -24,4 +24,16 @@ export const projectService = {
     delete: async (workspaceId, projectId) => {
         await api.delete(`/workspaces/${workspaceId}/projects/${projectId}/`)
     },
+
+    addMember: async (projectId, userId) => {
+        const response = await api.post(`/projects/${projectId}/add_member/`, {
+            user_id: userId
+        })
+        return response.data
+    },
+
+    getMembers: async (projectId) => {
+        const response = await api.get(`/projects/${projectId}/members/`)
+        return response.data
+    },
 }

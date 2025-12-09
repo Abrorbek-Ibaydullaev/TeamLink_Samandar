@@ -49,24 +49,25 @@ export const AuthProvider = ({ children }) => {
   }
 
   const login = async (credentials) => {
-    const response = await authService.login(credentials)
-    
-    // Get user from response or fetch profile
-    if (response.data.user) {
-      setUser(response.data.user)
-    } else {
-      // Fetch profile if not in login response
-      try {
-        const profileData = await authService.getProfile()
-        if (profileData.success) {
-          setUser(profileData.data)
+    try {
+      const response = await authService.login(credentials)
+      
+      // Get user from response - the EmailLoginView returns user data
+      if (response.data && response.data.user) {
+        setUser(response.data.user)
+      } else if (response.data) {
+        // If user not in response, store what we have and try to fetch profile
+        const storedUser = authService.getCurrentUser()
+        if (storedUser) {
+          setUser(storedUser)
         }
-      } catch (err) {
-        console.error('Failed to fetch profile after login:', err)
       }
+      
+      return response
+    } catch (error) {
+      console.error('Login failed:', error)
+      throw error
     }
-    
-    return response
   }
 
   const register = async (userData) => {

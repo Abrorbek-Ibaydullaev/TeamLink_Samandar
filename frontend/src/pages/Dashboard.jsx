@@ -164,7 +164,7 @@ export default function Dashboard({ darkMode = true, setDarkMode }) {
                   <p className={`text-xs md:text-sm ${textSecondary}`}>Track your project progress</p>
                 </div>
                 <Link
-                  to="/create-project"
+                  to="/workspaces"
                   className="flex items-center justify-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-lg md:rounded-xl hover:opacity-90 transition text-sm font-medium w-full sm:w-auto"
                 >
                   <Plus size={18} />
@@ -282,7 +282,7 @@ export default function Dashboard({ darkMode = true, setDarkMode }) {
               <h3 className={`font-semibold ${textPrimary} mb-4 text-sm md:text-base`}>Quick Actions</h3>
               <div className="space-y-3">
                 <Link
-                  to="/create-project"
+                  to="/workspaces"
                   className={`flex items-center gap-3 p-3 rounded-lg md:rounded-xl ${darkMode ? 'bg-gray-700/30' : 'bg-gray-50'} hover:${darkMode ? 'bg-gray-700/50' : 'bg-gray-100'} transition`}
                 >
                   <div className="w-10 h-10 rounded-lg bg-blue-500/20 flex items-center justify-center flex-shrink-0">

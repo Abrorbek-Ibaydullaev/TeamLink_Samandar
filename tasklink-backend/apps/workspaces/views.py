@@ -39,7 +39,7 @@ class WorkspaceViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         """Create workspace and add owner as member"""
         workspace = serializer.save(owner=self.request.user)
-
+        print(workspace, 'workspace created')
         # Create owner membership
         Membership.objects.create(
             user=self.request.user,

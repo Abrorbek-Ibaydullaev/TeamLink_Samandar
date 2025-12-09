@@ -10,6 +10,7 @@ import CreateWorkspace from './pages/CreateWorkspace'
 import Projects from './pages/Projects'
 import CreateProject from './pages/CreateProject'
 import Board from './pages/Board'
+import AllProjects from './pages/AllProjects'
 // ... your existing imports ...
 
 // Protected Route Component
@@ -29,6 +30,7 @@ function App() {
           <Route path="/" element={<Home darkMode={darkMode} setDarkMode={setDarkMode} />} />
           <Route path="/login" element={<Login darkMode={darkMode} />} />
           <Route path="/register" element={<Register darkMode={darkMode} />} />
+          <Route path="/projects" element={<AllProjects darkMode={darkMode} setDarkMode={setDarkMode} />} />
           
           <Route
             path="/dashboard"

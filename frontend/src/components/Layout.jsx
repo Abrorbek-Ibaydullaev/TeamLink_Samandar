@@ -20,8 +20,8 @@ export default function Layout({ children, darkMode, setDarkMode }) {
 
   const navItems = [
     { path: '/dashboard', icon: Home, label: 'Dashboard' },
-    { path: '/projects', icon: FolderKanban, label: 'Projects' },
-    { path: '/create-project', icon: Plus, label: 'New Project' },
+    { path: '/workspaces', icon: FolderKanban, label: 'Workspaces' },
+    { path: '/workspaces', icon: Plus, label: 'New Project' },
   ]
 
   return (

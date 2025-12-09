@@ -14,8 +14,3 @@ media/
 # IDEs and editors
 .vscode/
 .idea/
-db.sqlite3
-staticfiles/
-mediafiles/
-logs/
-.DS_Store

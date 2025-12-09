@@ -40,7 +40,7 @@ export default function Login({ darkMode = true }) {
     }
 
     try {
-      // REAL API CALL TO DJANGO BACKEND
+      // Call login from context which handles token storage
       await login({ email, password })
       
       // Navigate to dashboard on success
@@ -49,7 +49,8 @@ export default function Login({ darkMode = true }) {
       // Handle different error types
       if (err.response) {
         // Server responded with error
-        const errorMsg = err.response.data?.message || 
+        const errorMsg = err.response.data?.detail || 
+                        err.response.data?.message || 
                         err.response.data?.error ||
                         'Invalid email or password'
         setError(errorMsg)

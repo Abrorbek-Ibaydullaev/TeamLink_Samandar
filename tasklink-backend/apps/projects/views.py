@@ -134,9 +134,8 @@ class ProjectViewSet(viewsets.ModelViewSet):
 
         return Response({'message': 'Project restored successfully'})
 
-    @action(detail=True, methods=['get'])
-    def columns(self, request, pk=None):
-        """Get all columns for a project"""
+    @action(detail=True, methods=['get'], url_path='columns')
+    def columns(self, request, workspace_pk=None, pk=None):
         project = self.get_object()
         columns = project.columns.all().order_by('position')
         serializer = ColumnSerializer(columns, many=True)

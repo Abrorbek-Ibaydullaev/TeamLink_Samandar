@@ -50,23 +50,9 @@ class WorkspaceCreateSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Workspace
-        fields = ['name', 'description', 'workspace_type']
-
-    # def create(self, validated_data):
-        # request = self.context.get('request')
-        # workspace = Workspace.objects.create(
-        #     owner=request.user,
-        #     **validated_data
-        # )
-
-        # # Add owner as admin member
-        # Membership.objects.create(
-        #     user=request.user,
-        #     workspace=workspace,
-        #     role='owner'
-        # )
-
-        # return workspace
+        fields = ['id', 'name', 'description', 'workspace_type',
+                  'owner', 'invite_code', 'created_at']
+        read_only_fields = ['id', 'owner', 'invite_code', 'created_at']
 
 
 class WorkspaceInviteSerializer(serializers.Serializer):

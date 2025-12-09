@@ -28,6 +28,7 @@ class RegisterView(generics.CreateAPIView):
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
+        print(serializer.validated_data, 'validated data')
         user = serializer.save()
 
         return Response({
@@ -48,6 +49,7 @@ class EmailLoginView(APIView):
     def post(self, request, *args, **kwargs):
         email = request.data.get('email') or request.data.get('username')
         password = request.data.get('password')
+        print(email, password, 'email password')
         if not email or not password:
             return Response({'detail': 'Email and password are required.'}, status=status.HTTP_400_BAD_REQUEST)
         try:
