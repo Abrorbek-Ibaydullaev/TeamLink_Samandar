@@ -25,6 +25,25 @@ export const projectService = {
         await api.delete(`/workspaces/${workspaceId}/projects/${projectId}/`)
     },
 
+    createColumn: async (workspaceId, projectId, data) => {
+        const payload = {
+            ...data,
+            project: projectId
+        }
+        const response = await api.post(`/workspaces/${workspaceId}/projects/${projectId}/columns/`, payload)
+        return response.data
+    },
+
+    createTask: async (workspaceId, projectId, columnId, data) => {
+        const payload = {
+            ...data,
+            project: projectId,
+            column: columnId
+        }
+        const response = await api.post(`/workspaces/${workspaceId}/projects/${projectId}/columns/${columnId}/tasks/`, payload)
+        return response.data
+    },
+
     addMember: async (projectId, userId) => {
         const response = await api.post(`/projects/${projectId}/add_member/`, {
             user_id: userId
