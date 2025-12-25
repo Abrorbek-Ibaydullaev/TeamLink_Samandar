@@ -62,7 +62,7 @@ class TaskViewSet(viewsets.ModelViewSet):
 
         assignee_id = self.request.query_params.get('assignee')
         if assignee_id:
-            queryset = queryset.filter(assignees__id=assignee_id)
+            queryset = queryset.filter(assignee__id=assignee_id)
 
         priority = self.request.query_params.get('priority')
         if priority:
@@ -80,8 +80,8 @@ class TaskViewSet(viewsets.ModelViewSet):
             )
 
         return queryset.distinct().select_related(
-            'column__project', 'created_by'
-        ).prefetch_related('assignees', 'comments', 'attachments', 'labels').order_by('position', '-created_at')
+            'column__project', 'created_by', 'assignee'
+        ).prefetch_related('comments', 'attachments', 'label_assignments__label').order_by('position', '-created_at')
 
     def get_serializer_class(self):
         if self.action == 'create':
@@ -93,34 +93,31 @@ class TaskViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         task = serializer.save(created_by=self.request.user)
 
-        # Log activity
         ActivityLog.log_activity(
-            user=self.request.user,
-            action='create',
-            entity_type='task',
-            entity_id=task.id,
-            description=f"Created task '{task.title}'",
-            workspace=task.column.project.workspace,
-            project=task.column.project
-        )
+        user=self.request.user,
+        action='create',
+        entity_type='task',
+        entity_id=task.id,
+        description=f"Created task '{task.title}'",
+        workspace=task.column.project.workspace,
+        project=task.column.project
+    )
 
-        # Create notifications for assignees
-        for assignee in task.assignees.all():
-            if assignee != self.request.user:
-                Notification.objects.create(
-                    recipient=assignee,
-                    sender=self.request.user,
-                    notification_type='task_assigned',
-                    title='New Task Assigned',
-                    message=f'You have been assigned to task: {task.title}',
-                    link=f'/workspaces/{task.column.project.workspace.id}/projects/{task.column.project.id}',
-                    task=task,
-                    project=task.column.project
-                )
+        if task.assignee and task.assignee != self.request.user:
+            Notification.objects.create(
+                recipient=task.assignee,
+                sender=self.request.user,
+                notification_type='task_assigned',
+                title='New Task Assigned',
+                message=f'You have been assigned to task: {task.title}',
+                link=f'/workspaces/{task.column.project.workspace.id}/projects/{task.column.project.id}',
+                task=task,
+                project=task.column.project
+            )
 
     def perform_update(self, serializer):
         old_task = self.get_object()
-        old_assignees = set(old_task.assignees.all())
+        old_assignee = old_task.assignee
 
         task = serializer.save()
 
@@ -135,20 +132,19 @@ class TaskViewSet(viewsets.ModelViewSet):
             project=task.column.project
         )
 
-        # Notify new assignees
-        new_assignees = set(task.assignees.all()) - old_assignees
-        for assignee in new_assignees:
-            if assignee != self.request.user:
-                Notification.objects.create(
-                    recipient=assignee,
-                    sender=self.request.user,
-                    notification_type='task_assigned',
-                    title='Task Assigned to You',
-                    message=f'You have been assigned to task: {task.title}',
-                    link=f'/workspaces/{task.column.project.workspace.id}/projects/{task.column.project.id}',
-                    task=task,
-                    project=task.column.project
-                )
+        # Notify new assignee if changed
+        new_assignee = task.assignee
+        if new_assignee and new_assignee != old_assignee and new_assignee != self.request.user:
+            Notification.objects.create(
+                recipient=new_assignee,
+                sender=self.request.user,
+                notification_type='task_assigned',
+                title='Task Assigned to You',
+                message=f'You have been assigned to task: {task.title}',
+                link=f'/workspaces/{task.column.project.workspace.id}/projects/{task.column.project.id}',
+                task=task,
+                project=task.column.project
+            )
 
     def perform_destroy(self, instance):
         ActivityLog.log_activity(
@@ -215,18 +211,17 @@ class TaskViewSet(viewsets.ModelViewSet):
             project=task.column.project
         )
 
-        # Notify assignees
-        for assignee in task.assignees.all():
-            if assignee != request.user:
-                Notification.objects.create(
-                    recipient=assignee,
-                    sender=request.user,
-                    notification_type='task_comment',
-                    title='New Comment on Task',
-                    message=f'{request.user.full_name or request.user.email} commented on: {task.title}',
-                    link=f'/workspaces/{task.column.project.workspace.id}/projects/{task.column.project.id}',
-                    task=task,
-                    project=task.column.project
-                )
+        # Notify assignee
+        if task.assignee and task.assignee != request.user:
+            Notification.objects.create(
+                recipient=task.assignee,
+                sender=request.user,
+                notification_type='task_comment',
+                title='New Comment on Task',
+                message=f'{request.user.full_name or request.user.email} commented on: {task.title}',
+                link=f'/workspaces/{task.column.project.workspace.id}/projects/{task.column.project.id}',
+                task=task,
+                project=task.column.project
+            )
 
         return Response(CommentSerializer(comment).data, status=status.HTTP_201_CREATED)

@@ -78,7 +78,7 @@ class TaskCreateSerializer(serializers.ModelSerializer):
         request = self.context.get('request')
 
         task = Task.objects.create(
-            created_by=request.user,
+            # created_by=request.user,
             assignee_id=assignee_id,
             **validated_data
         )
