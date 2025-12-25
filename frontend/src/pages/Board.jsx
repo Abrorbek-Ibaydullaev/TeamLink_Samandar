@@ -16,7 +16,6 @@ export default function Board({ darkMode = true, setDarkMode }) {
   const [searchQuery, setSearchQuery] = useState('')
   const [showMobileMenu, setShowMobileMenu] = useState(false)
   
-  // Modal states
   const [showAddColumn, setShowAddColumn] = useState(false)
   const [showAddTask, setShowAddTask] = useState(false)
   const [selectedColumn, setSelectedColumn] = useState(null)
@@ -27,6 +26,17 @@ export default function Board({ darkMode = true, setDarkMode }) {
     description: '',
     priority: 'medium',
     due_date: ''
+  })
+
+  const [showTaskDetail, setShowTaskDetail] = useState(false)
+  const [selectedTask, setSelectedTask] = useState(null)
+  const [editTaskData, setEditTaskData] = useState({
+    title: '',
+    description: '',
+    priority: 'medium',
+    status: 'todo',
+    due_date: '',
+    assignee_id: null
   })
 
   const cardBg = darkMode ? 'bg-gray-800/50' : 'bg-white'
@@ -44,12 +54,10 @@ export default function Board({ darkMode = true, setDarkMode }) {
       setLoading(true)
       setError('')
 
-      // Fetch project details
       const projectResponse = await projectService.getById(workspaceId, projectId)
       const projectData = projectResponse.data?.data || projectResponse.data || projectResponse
       setProject(projectData)
 
-      // Fetch columns
       const columnsResponse = await axios.get(`/workspaces/${workspaceId}/projects/${projectId}/columns/`)
       
       let columnsList = []
@@ -61,7 +69,6 @@ export default function Board({ darkMode = true, setDarkMode }) {
         columnsList = columnsResponse.data
       }
 
-      // Fetch tasks for each column
       const columnsWithTasks = await Promise.all(
         columnsList.map(async (column) => {
           try {
@@ -116,30 +123,130 @@ export default function Board({ darkMode = true, setDarkMode }) {
     if (!newTaskData.title.trim() || !selectedColumn) return
 
     try {
+      // determine initial status from the column name when applicable
+      const normalize = (s) => (s || '').toString().toLowerCase().replace(/[-_\s]/g, '')
+      const colName = normalize(selectedColumn.name || selectedColumn.title)
+      let initialStatus = null
+      if (['todo'].includes(colName)) initialStatus = 'todo'
+      if (['inprogress', 'in-progress', 'in progress'].includes(colName)) initialStatus = 'in-progress'
+      if (['done', 'completed'].includes(colName)) initialStatus = 'done'
 
-      const responseData = await projectService.createTask(workspaceId, projectId, selectedColumn.id, {
+      const payload = {
         title: newTaskData.title,
         description: newTaskData.description,
         priority: newTaskData.priority,
         due_date: newTaskData.due_date || null,
         position: selectedColumn.tasks?.length || 0
-      })
+      }
+      if (initialStatus) payload.status = initialStatus
+
+      const responseData = await projectService.createTask(workspaceId, projectId, selectedColumn.id, payload)
 
       const newTask = responseData?.data?.data || responseData?.data || responseData
 
-      // Update columns state
       setColumns(columns.map(col => 
         col.id === selectedColumn.id 
           ? { ...col, tasks: [...(col.tasks || []), newTask] }
           : col
       ))
 
-      // Reset form
       setNewTaskData({ title: '', description: '', priority: 'medium', due_date: '' })
       setShowAddTask(false)
       setSelectedColumn(null)
     } catch (err) {
       alert(err.response?.data?.message || 'Failed to create task')
+    }
+  }
+
+  const handleUpdateTask = async () => {
+    if (!selectedTask) return
+    if (!editTaskData.title || !editTaskData.title.trim()) {
+      alert('Title is required')
+      return
+    }
+
+    if (!selectedTask.id) {
+      console.error('handleUpdateTask called but selectedTask.id is missing', selectedTask)
+      alert('No task selected to update')
+      return
+    }
+
+    const columnId = (selectedTask.column && typeof selectedTask.column === 'object')
+      ? selectedTask.column.id
+      : selectedTask.column
+    // Map status to column if a matching column name exists (move between columns)
+    const normalize = (s) => (s || '').toString().toLowerCase().replace(/[-_\s]/g, '')
+    const statusToNames = {
+      'todo': ['todo', 'todo', 'todo'],
+      'in-progress': ['inprogress', 'in-progress', 'in progress'],
+      'done': ['done', 'completed']
+    }
+
+    let targetColumnId = columnId
+    try {
+      const normalizedStatus = normalize(editTaskData.status)
+      for (const [statusKey, nameVariants] of Object.entries(statusToNames)) {
+        if (normalizedStatus === normalize(statusKey)) {
+          const found = columns.find(c => nameVariants.some(v => normalize(c.name) === normalize(v)))
+          if (found) {
+            targetColumnId = found.id
+          }
+          break
+        }
+      }
+    } catch (e) {
+      console.debug('Status-to-column mapping failed', e)
+    }
+
+    console.debug('Updating task', { workspaceId, projectId, columnId, taskId: selectedTask.id, payload: editTaskData })
+
+    try {
+      const responseData = await projectService.updateTask(
+        workspaceId,
+        projectId,
+        columnId,
+        selectedTask.id,
+        editTaskData
+      )
+
+      const updatedTask = responseData?.data?.data || responseData?.data || responseData
+
+      setColumns(columns.map(col => ({
+        ...col,
+        tasks: (col.tasks || []).map(task => (
+          task.id === selectedTask.id ? updatedTask : task
+        ))
+      })))
+
+      setShowTaskDetail(false)
+      setSelectedTask(null)
+    } catch (err) {
+      console.error('Failed to update task', err.response?.data || err.message || err)
+      const msg = err.response?.data?.message || err.response?.data || err.message || 'Failed to update task'
+      alert(msg)
+    }
+  }
+
+  const handleDeleteTask = async () => {
+    if (!selectedTask || !window.confirm('Are you sure you want to delete this task?')) return
+
+    try {
+      await projectService.deleteTask(
+        workspaceId, 
+        projectId, 
+        selectedTask.column, 
+        selectedTask.id
+      )
+
+      setColumns(columns.map(col => ({
+        ...col,
+        tasks: col.tasks.filter(task => task.id !== selectedTask.id)
+      })))
+
+      setShowTaskDetail(false)
+      setSelectedTask(null)
+    } catch (err) {
+      alert(err.response?.data?.message || 'Failed to delete task')
     }
   }
 
@@ -161,12 +268,31 @@ export default function Board({ darkMode = true, setDarkMode }) {
   }
 
   const TaskCard = ({ task }) => (
-    <div className={`${cardBg} backdrop-blur-xl border ${borderColor} border-l-4 ${priorityColors[task.priority] || priorityColors.medium} rounded-xl p-3 md:p-4 mb-3 hover:shadow-lg transition-all cursor-pointer group`}>
+    <div 
+      onClick={() => {
+        setSelectedTask(task)
+        setEditTaskData({
+          title: task.title,
+          description: task.description || '',
+          priority: task.priority || 'medium',
+          status: task.status || 'todo',
+          due_date: task.due_date || '',
+          assignee_id: task.assignee?.id || null
+        })
+        setShowTaskDetail(true)
+      }}
+      className={`${cardBg} backdrop-blur-xl border ${borderColor} border-l-4 ${priorityColors[task.priority] || priorityColors.medium} rounded-xl p-3 md:p-4 mb-3 hover:shadow-lg transition-all cursor-pointer group`}
+    >
       <div className="flex items-start justify-between mb-2 md:mb-3">
         <span className={`text-xs px-2 py-1 rounded ${priorityBadges[task.priority] || priorityBadges.medium}`}>
           {task.priority || 'medium'}
         </span>
-        <button className={`p-1 rounded ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'} opacity-0 group-hover:opacity-100 transition`}>
+        <button 
+          onClick={(e) => {
+            e.stopPropagation()
+          }}
+          className={`p-1 rounded ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'} opacity-0 group-hover:opacity-100 transition`}
+        >
           <MoreVertical size={14} className={textSecondary} />
         </button>
       </div>
@@ -182,16 +308,16 @@ export default function Board({ darkMode = true, setDarkMode }) {
 
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2 md:gap-3 text-xs">
-          {task.comment_count > 0 && (
+          {task.comments_count > 0 && (
             <span className={`flex items-center gap-1 ${textSecondary}`}>
               <MessageSquare size={12} />
-              {task.comment_count}
+              {task.comments_count}
             </span>
           )}
-          {task.attachment_count > 0 && (
+          {task.attachments_count > 0 && (
             <span className={`flex items-center gap-1 ${textSecondary}`}>
               <Paperclip size={12} />
-              {task.attachment_count}
+              {task.attachments_count}
             </span>
           )}
           {task.due_date && (
@@ -202,22 +328,12 @@ export default function Board({ darkMode = true, setDarkMode }) {
           )}
         </div>
 
-        {task.assignees && task.assignees.length > 0 && (
-          <div className="flex -space-x-1 md:-space-x-2">
-            {task.assignees.slice(0, 3).map((assignee, idx) => (
-              <div
-                key={idx}
-                className={`w-5 h-5 md:w-6 md:h-6 rounded-full ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} border-2 ${darkMode ? 'border-gray-800' : 'border-white'} flex items-center justify-center text-xs`}
-                title={assignee.full_name || assignee.email}
-              >
-                {assignee.avatar || assignee.full_name?.charAt(0).toUpperCase() || '👤'}
-              </div>
-            ))}
-            {task.assignees.length > 3 && (
-              <div className={`w-5 h-5 md:w-6 md:h-6 rounded-full ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} border-2 ${darkMode ? 'border-gray-800' : 'border-white'} flex items-center justify-center text-xs ${textSecondary}`}>
-                +{task.assignees.length - 3}
-              </div>
-            )}
+        {task.assignee && (
+          <div 
+            className={`w-5 h-5 md:w-6 md:h-6 rounded-full ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} border-2 ${darkMode ? 'border-gray-800' : 'border-white'} flex items-center justify-center text-xs`}
+            title={task.assignee.full_name || task.assignee.email}
+          >
+            {task.assignee.avatar || task.assignee.full_name?.charAt(0).toUpperCase() || '👤'}
           </div>
         )}
       </div>
@@ -233,7 +349,27 @@ export default function Board({ darkMode = true, setDarkMode }) {
               {column.name || column.title}
             </h3>
             <span className={`text-xs px-2 py-0.5 rounded-full ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} ${textSecondary}`}>
-              {column.tasks?.length || 0}
+              {/* show count for tasks that belong to this column by status when column matches a workflow status */}
+              {(() => {
+                try {
+                  const normalize = (s) => (s || '').toString().toLowerCase().replace(/[-_\s]/g, '')
+                  const name = normalize(column.name || column.title)
+                  const statusMap = {
+                    'todo': ['todo'],
+                    'inprogress': ['inprogress', 'in-progress', 'in progress'],
+                    'done': ['done', 'completed']
+                  }
+                  const matched = Object.entries(statusMap).find(([, variants]) => variants.some(v => normalize(v) === name))
+                  if (matched) {
+                    const statusKey = matched[0] === 'inprogress' ? 'in-progress' : matched[0]
+                    const allTasks = (columns || []).flatMap(c => c.tasks || [])
+                    return allTasks.filter(t => (t.status || 'todo') === statusKey).length
+                  }
+                } catch (e) {
+                  return column.tasks?.length || 0
+                }
+                return column.tasks?.length || 0
+              })()}
             </span>
           </div>
           <button 
@@ -249,15 +385,45 @@ export default function Board({ darkMode = true, setDarkMode }) {
       </div>
 
       <div className="space-y-0">
-        {column.tasks && column.tasks.length > 0 ? (
-          column.tasks.map((task) => (
-            <TaskCard key={task.id} task={task} />
-          ))
-        ) : (
-          <div className={`text-center py-8 ${textSecondary} text-xs`}>
-            No tasks yet
-          </div>
-        )}
+        {(() => {
+          // If this column corresponds to a workflow status (todo, in-progress, done)
+          // show tasks filtered by task.status across all columns. Otherwise show column.tasks.
+          try {
+            const normalize = (s) => (s || '').toString().toLowerCase().replace(/[-_\s]/g, '')
+            const name = normalize(column.name || column.title)
+            const statusMap = {
+              'todo': ['todo'],
+              'inprogress': ['inprogress', 'in-progress', 'in progress'],
+              'done': ['done', 'completed']
+            }
+            const matched = Object.entries(statusMap).find(([, variants]) => variants.some(v => normalize(v) === name))
+            if (matched) {
+              const statusKey = matched[0] === 'inprogress' ? 'in-progress' : matched[0]
+              const allTasks = (columns || []).flatMap(c => c.tasks || [])
+              const tasksToShow = allTasks.filter(t => (t.status || 'todo') === statusKey)
+              if (tasksToShow.length > 0) {
+                return tasksToShow.map(task => <TaskCard key={task.id} task={task} />)
+              }
+              return (
+                <div className={`text-center py-8 ${textSecondary} text-xs`}>
+                  No tasks yet
+                </div>
+              )
+            }
+          } catch (e) {
+            // fallthrough to default
+          }
+
+          return column.tasks && column.tasks.length > 0 ? (
+            column.tasks.map((task) => (
+              <TaskCard key={task.id} task={task} />
+            ))
+          ) : (
+            <div className={`text-center py-8 ${textSecondary} text-xs`}>
+              No tasks yet
+            </div>
+          )
+        })()}
       </div>
 
       <button 
@@ -393,6 +559,135 @@ export default function Board({ darkMode = true, setDarkMode }) {
               <div className="flex gap-3">
                 <button onClick={() => { setShowAddTask(false); setSelectedColumn(null); }} className={`flex-1 px-4 py-2 rounded-xl ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} ${textPrimary}`}>Cancel</button>
                 <button onClick={handleAddTask} className="flex-1 px-4 py-2 rounded-xl bg-gradient-to-r from-blue-500 to-purple-500 text-white">Create Task</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* NEW: Task Detail/Edit Modal */}
+        {showTaskDetail && selectedTask && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className={`${cardBg} rounded-2xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto`}>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className={`text-xl font-bold ${textPrimary}`}>Task Details</h3>
+                <button 
+                  onClick={() => {
+                    setShowTaskDetail(false)
+                    setSelectedTask(null)
+                  }}
+                  className={`p-2 rounded-lg ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'} transition`}
+                >
+                  <X size={20} className={textSecondary} />
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                {/* Title */}
+                <div>
+                  <label className={`block text-sm font-medium ${textSecondary} mb-2`}>Title</label>
+                  <input
+                    type="text"
+                    value={editTaskData.title}
+                    onChange={(e) => setEditTaskData({...editTaskData, title: e.target.value})}
+                    placeholder="Task title"
+                    className={`w-full px-4 py-3 rounded-xl ${inputBg} border ${borderColor} ${textPrimary}`}
+                  />
+                </div>
+
+                {/* Description */}
+                <div>
+                  <label className={`block text-sm font-medium ${textSecondary} mb-2`}>Description</label>
+                  <textarea
+                    value={editTaskData.description}
+                    onChange={(e) => setEditTaskData({...editTaskData, description: e.target.value})}
+                    placeholder="Task description"
+                    className={`w-full px-4 py-3 rounded-xl ${inputBg} border ${borderColor} ${textPrimary} h-32`}
+                  />
+                </div>
+
+                {/* Priority and Status */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className={`block text-sm font-medium ${textSecondary} mb-2`}>Priority</label>
+                    <select
+                      value={editTaskData.priority}
+                      onChange={(e) => setEditTaskData({...editTaskData, priority: e.target.value})}
+                      className={`w-full px-4 py-3 rounded-xl ${inputBg} border ${borderColor} ${textPrimary}`}
+                    >
+                      <option value="low">Low</option>
+                      <option value="medium">Medium</option>
+                      <option value="high">High</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className={`block text-sm font-medium ${textSecondary} mb-2`}>Status</label>
+                    <select
+                      value={editTaskData.status}
+                      onChange={(e) => setEditTaskData({...editTaskData, status: e.target.value})}
+                      className={`w-full px-4 py-3 rounded-xl ${inputBg} border ${borderColor} ${textPrimary}`}
+                    >
+                      <option value="todo">To Do</option>
+                      <option value="in-progress">In Progress</option>
+                      <option value="done">Done</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Due Date */}
+                <div>
+                  <label className={`block text-sm font-medium ${textSecondary} mb-2`}>Due Date</label>
+                  <input
+                    type="date"
+                    value={editTaskData.due_date}
+                    onChange={(e) => setEditTaskData({...editTaskData, due_date: e.target.value})}
+                    className={`w-full px-4 py-3 rounded-xl ${inputBg} border ${borderColor} ${textPrimary}`}
+                  />
+                </div>
+
+                {/* Metadata */}
+                <div className={`p-4 rounded-xl ${inputBg} border ${borderColor}`}>
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div>
+                      <span className={`${textSecondary}`}>Created by:</span>
+                      <p className={`${textPrimary} font-medium mt-1`}>
+                        {selectedTask.created_by?.full_name || selectedTask.created_by?.email || 'Unknown'}
+                      </p>
+                    </div>
+                    <div>
+                      <span className={`${textSecondary}`}>Created at:</span>
+                      <p className={`${textPrimary} font-medium mt-1`}>
+                        {new Date(selectedTask.created_at).toLocaleDateString()}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="flex gap-3 pt-4">
+                  <button
+                    onClick={handleDeleteTask}
+                    className="px-4 py-2 rounded-xl bg-red-500/20 text-red-400 hover:bg-red-500/30 transition"
+                  >
+                    Delete Task
+                  </button>
+                  <div className="flex-1"></div>
+                  <button
+                    onClick={() => {
+                      setShowTaskDetail(false)
+                      setSelectedTask(null)
+                    }}
+                    className={`px-4 py-2 rounded-xl ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} ${textPrimary}`}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleUpdateTask}
+                    className="px-4 py-2 rounded-xl bg-gradient-to-r from-blue-500 to-purple-500 text-white"
+                  >
+                    Save Changes
+                  </button>
+                </div>
               </div>
             </div>
           </div>

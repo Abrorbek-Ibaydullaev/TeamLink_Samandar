@@ -44,6 +44,20 @@ export const projectService = {
         return response.data
     },
 
+    updateTask: async (workspaceId, projectId, columnId, taskId, data) => {
+        const payload = {
+            ...data,
+            project: projectId,
+            column: columnId
+        }
+        const response = await api.patch(`/workspaces/${workspaceId}/projects/${projectId}/columns/${columnId}/tasks/${taskId}/`, payload)
+        return response.data
+    },
+
+    deleteTask: async (workspaceId, projectId, columnId, taskId) => {
+        await api.delete(`/workspaces/${workspaceId}/projects/${projectId}/columns/${columnId}/tasks/${taskId}/`)
+    },
+
     addMember: async (projectId, userId) => {
         const response = await api.post(`/projects/${projectId}/add_member/`, {
             user_id: userId
