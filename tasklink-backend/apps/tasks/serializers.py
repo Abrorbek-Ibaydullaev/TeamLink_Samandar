@@ -76,9 +76,9 @@ class TaskCreateSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         assignee_id = validated_data.pop('assignee_id', None)
         request = self.context.get('request')
-
+        created_by = request.user if request else None
+        created_at = validated_data.get('created_at')
         task = Task.objects.create(
-            # created_by=request.user,
             assignee_id=assignee_id,
             **validated_data
         )
