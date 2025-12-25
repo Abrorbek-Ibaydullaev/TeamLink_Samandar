@@ -117,7 +117,6 @@ class ProjectViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'])
     def restore(self, request, pk=None):
-        """Restore an archived project"""
         project = self.get_object()
         project.is_archived = False
         project.save()
@@ -134,16 +133,34 @@ class ProjectViewSet(viewsets.ModelViewSet):
 
         return Response({'message': 'Project restored successfully'})
 
-    @action(detail=True, methods=['get'], url_path='columns')
+    @action(detail=True, methods=['get', 'post'], url_path='columns')
     def columns(self, request, workspace_pk=None, pk=None):
         project = self.get_object()
-        columns = project.columns.all().order_by('position')
-        serializer = ColumnSerializer(columns, many=True)
-        return Response(serializer.data)
+
+        if request.method == 'GET':
+            columns = project.columns.all().order_by('position')
+            serializer = ColumnSerializer(columns, many=True)
+            return Response(serializer.data)
+
+        serializer = ColumnCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        column = serializer.save(project=project)
+
+        ActivityLog.log_activity(
+            user=request.user,
+            action='create',
+            entity_type='column',
+            entity_id=column.id,
+            description=f"Added column '{column.name}' to project '{project.name}'",
+            workspace=project.workspace,
+            project=project
+        )
+
+        return Response(ColumnSerializer(column).data, status=status.HTTP_201_CREATED)
 
     @action(detail=True, methods=['post'])
     def add_column(self, request, pk=None):
-        """Add a new column to project"""
         project = self.get_object()
         serializer = ColumnCreateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -349,7 +366,6 @@ class ColumnViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         column = serializer.save()
-
         ActivityLog.log_activity(
             user=self.request.user,
             action='create',
