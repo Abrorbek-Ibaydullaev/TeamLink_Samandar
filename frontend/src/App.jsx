@@ -11,6 +11,7 @@ import Projects from './pages/Projects'
 import CreateProject from './pages/CreateProject'
 import Board from './pages/Board'
 import AllProjects from './pages/AllProjects'
+import EditProject from './pages/EditProjects'
 // ... your existing imports ...
 
 // Protected Route Component
@@ -82,6 +83,14 @@ function App() {
             element={
               <ProtectedRoute>
                 <Board darkMode={darkMode} setDarkMode={setDarkMode} />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/workspaces/:workspaceId/projects/:projectId/update"
+            element={
+              <ProtectedRoute>
+                <EditProject darkMode={darkMode} setDarkMode={setDarkMode} />
               </ProtectedRoute>
             }
           />
