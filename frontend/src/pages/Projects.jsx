@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { Plus, Folder, ArrowLeft, Users, Tag, MoreVertical, Edit2, Archive, Trash2 } from 'lucide-react'
+import { Plus, Folder, ArrowLeft, Users, Tag, MoreVertical, Edit2, Archive, Trash2, RotateCw } from 'lucide-react'
 import Layout from '../components/Layout'
 import { projectService } from '../services/projectService'
 import { workspaceService } from '../services/workspaceService'
@@ -42,25 +42,13 @@ export default function Projects({ darkMode = true, setDarkMode }) {
     try {
       setLoading(true)
       setError('')
-      
-      console.log('📤 Fetching workspace:', workspaceId)
-      
-      // Fetch workspace details
+
       const workspaceResponse = await workspaceService.getById(workspaceId)
-      console.log('✅ Workspace response:', workspaceResponse)
-      
       const workspaceData = workspaceResponse.data?.data || workspaceResponse.data || workspaceResponse
       setWorkspace(workspaceData)
-      console.log('✅ Workspace set:', workspaceData)
 
-      // Fetch projects
-      console.log('📤 Fetching projects for workspace:', workspaceId)
       const projectsResponse = await projectService.getAll(workspaceId)
-      console.log('✅ Projects response:', projectsResponse)
-      
-      // Handle different response structures
       let projectsList = []
-      
       if (projectsResponse.data?.results) {
         projectsList = projectsResponse.data.results
       } else if (projectsResponse.data && Array.isArray(projectsResponse.data)) {
@@ -69,23 +57,14 @@ export default function Projects({ darkMode = true, setDarkMode }) {
         projectsList = projectsResponse.results
       } else if (Array.isArray(projectsResponse)) {
         projectsList = projectsResponse
-      } else {
-        console.warn('⚠️ Unexpected projects response format:', projectsResponse)
-        projectsList = []
       }
-      
-      console.log('✅ Parsed projects:', projectsList)
       setProjects(projectsList)
     } catch (err) {
-      console.error('❌ Error fetching data:', err)
-      console.error('❌ Error response:', err.response?.data)
-      console.error('❌ Error status:', err.response?.status)
-      
-      const errorMsg = err.response?.data?.message || 
-                      err.response?.data?.error ||
-                      err.response?.data?.detail ||
-                      err.message ||
-                      'Failed to load projects'
+      const errorMsg = err.response?.data?.message ||
+        err.response?.data?.error ||
+        err.response?.data?.detail ||
+        err.message ||
+        'Failed to load projects'
       setError(errorMsg)
     } finally {
       setLoading(false)
@@ -94,20 +73,13 @@ export default function Projects({ darkMode = true, setDarkMode }) {
 
   const handleArchiveProject = async (projectId, e) => {
     e.stopPropagation()
-    
-    if (!confirm('Are you sure you want to archive this project?')) {
-      return
-    }
+    if (!confirm('Are you sure you want to archive this project?')) return
 
     try {
       setArchiving(projectId)
       await projectService.archive(workspaceId, projectId)
-      
-      // Remove from list or refetch
       setProjects(projects.filter(p => p.id !== projectId))
       setActiveMenu(null)
-      
-      // Show success message (you can add a toast notification here)
       console.log('✅ Project archived successfully')
     } catch (err) {
       console.error('❌ Error archiving project:', err)
@@ -116,13 +88,44 @@ export default function Projects({ darkMode = true, setDarkMode }) {
       setArchiving(null)
     }
   }
+  const handleRestoreProject = async (projectId, e) => {
+    e.stopPropagation()
+    if (!confirm('Restore this project?')) return
+
+    try {
+      setArchiving(projectId)
+      await projectService.restore(workspaceId, projectId)
+      setProjects(projects.map(p => p.id === projectId ? { ...p, is_archived: false } : p))
+      setActiveMenu(null)
+    } catch (err) {
+      alert(err.response?.data?.message || 'Failed to restore project')
+    } finally {
+      setArchiving(null)
+    }
+  }
+
+  const handleDeleteProject = async (projectId, e) => {
+    e.stopPropagation()
+    if (!confirm('Delete this project permanently?')) return
+
+    try {
+      setArchiving(projectId)
+      await projectService.delete(workspaceId, projectId)
+      setProjects(projects.filter(p => p.id !== projectId))
+      setActiveMenu(null)
+    } catch (err) {
+      alert(err.response?.data?.message || 'Failed to delete project')
+    } finally {
+      setArchiving(null)
+    }
+  }
 
   const handleEditProject = (projectId, e) => {
     e.preventDefault()
     e.stopPropagation()
-    navigate(`/workspaces/${workspaceId}/projects/${projectId}/update`)  
+    navigate(`/workspaces/${workspaceId}/projects/${projectId}/update`)
     setActiveMenu(null)
-}
+  }
 
   const toggleMenu = (projectId, e) => {
     e.stopPropagation()
@@ -178,7 +181,7 @@ export default function Projects({ darkMode = true, setDarkMode }) {
           <div className="mb-6 p-4 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 text-sm">
             <p className="font-semibold mb-2">Error loading projects:</p>
             <p>{error}</p>
-            <button 
+            <button
               onClick={fetchWorkspaceAndProjects}
               className="mt-3 px-4 py-2 bg-red-500/20 rounded-lg hover:bg-red-500/30 transition text-sm"
             >
@@ -213,15 +216,15 @@ export default function Projects({ darkMode = true, setDarkMode }) {
               <div
                 key={project.id}
                 onClick={(e) => {
-                    if (e.defaultPrevented) return
-                    navigate(`/workspaces/${workspaceId}/projects/${project.id}`)
-                  }}
+                  if (e.defaultPrevented) return
+                  navigate(`/workspaces/${workspaceId}/projects/${project.id}`)
+                }}
                 className={`${cardBg} backdrop-blur-xl border ${borderColor} rounded-2xl p-6 hover:border-blue-500 transition cursor-pointer group relative overflow-hidden ${
                   archiving === project.id ? 'opacity-50 pointer-events-none' : ''
                 }`}
               >
                 {/* Color Accent */}
-                <div 
+                <div
                   className="absolute top-0 right-0 w-32 h-32 opacity-20 rounded-full blur-3xl"
                   style={{ backgroundColor: project.color || '#3B82F6' }}
                 ></div>
@@ -229,7 +232,7 @@ export default function Projects({ darkMode = true, setDarkMode }) {
                 {/* Project Header */}
                 <div className="relative">
                   <div className="flex items-start gap-3 mb-4">
-                    <div 
+                    <div
                       className="w-12 h-12 rounded-xl flex items-center justify-center text-2xl flex-shrink-0"
                       style={{ backgroundColor: `${project.color || '#3B82F6'}20` }}
                     >
@@ -243,8 +246,8 @@ export default function Projects({ darkMode = true, setDarkMode }) {
                         {project.description || 'No description'}
                       </p>
                     </div>
-                    
-                    {/* Menu Button */}
+
+                    {/* Menu Button (always visible now) */}
                     <div className="relative">
                       <button
                         onClick={(e) => toggleMenu(project.id, e)}
@@ -253,25 +256,29 @@ export default function Projects({ darkMode = true, setDarkMode }) {
                         <MoreVertical size={18} className={textSecondary} />
                       </button>
 
-                      {/* Dropdown Menu */}
                       {activeMenu === project.id && (
-                        <div 
+                        <div
                           className={`absolute right-0 top-full mt-2 w-48 ${cardBg} border ${borderColor} rounded-xl shadow-xl py-2 z-10`}
                           onClick={(e) => e.stopPropagation()}
                         >
-                          <button
-                            onClick={(e) => handleEditProject(project.id, e)}
-                            className={`w-full px-4 py-2 text-left flex items-center gap-3 ${textPrimary} hover:bg-blue-500/10 transition text-sm`}
-                          >
-                            <Edit2 size={16} />
-                            Edit Project
-                          </button>
-                          <button
-                            onClick={(e) => handleArchiveProject(project.id, e)}
-                            className={`w-full px-4 py-2 text-left flex items-center gap-3 text-orange-400 hover:bg-orange-500/10 transition text-sm`}
-                          >
-                            <Archive size={16} />
-                            Archive Project
+                          {!project.is_archived && (
+                            <button onClick={(e) => handleEditProject(project.id, e)} className="w-full px-4 py-2 flex items-center gap-2 hover:bg-blue-500/10">
+                              <Edit2 size={16} /> Edit
+                            </button>
+                          )}
+                          {!project.is_archived && (
+                            <button onClick={(e) => handleArchiveProject(project.id, e)} className="w-full px-4 py-2 flex items-center gap-2 text-orange-400 hover:bg-orange-500/10">
+                              <Archive size={16} /> Archive
+                            </button>
+                          )}
+                          {project.is_archived && (
+                            <button onClick={(e) => handleRestoreProject(project.id, e)} className="w-full px-4 py-2 flex items-center gap-2 text-green-400 hover:bg-green-500/10">
+                              <RotateCw size={16} /> Restore
+                            </button>
+                          )}
+                          
+                          <button onClick={(e) => handleDeleteProject(project.id, e)} className="w-full px-4 py-2 flex items-center gap-2 text-red-400 hover:bg-red-500/10">
+                            <Trash2 size={16} /> Delete
                           </button>
                         </div>
                       )}
