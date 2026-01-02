@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { Plus, Folder, ArrowLeft, Users, Tag } from 'lucide-react'
+import { Plus, Folder, ArrowLeft, Users, Tag, MoreVertical, Edit2, Archive, Trash2 } from 'lucide-react'
 import Layout from '../components/Layout'
 import { projectService } from '../services/projectService'
 import { workspaceService } from '../services/workspaceService'
@@ -12,6 +12,8 @@ export default function Projects({ darkMode = true, setDarkMode }) {
   const [projects, setProjects] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [activeMenu, setActiveMenu] = useState(null)
+  const [archiving, setArchiving] = useState(null)
 
   const cardBg = darkMode ? 'bg-gray-800/50' : 'bg-white'
   const textPrimary = darkMode ? 'text-white' : 'text-gray-900'
@@ -26,6 +28,15 @@ export default function Projects({ darkMode = true, setDarkMode }) {
       setLoading(false)
     }
   }, [workspaceId])
+
+  // Close menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = () => setActiveMenu(null)
+    if (activeMenu) {
+      document.addEventListener('click', handleClickOutside)
+      return () => document.removeEventListener('click', handleClickOutside)
+    }
+  }, [activeMenu])
 
   const fetchWorkspaceAndProjects = async () => {
     try {
@@ -51,16 +62,12 @@ export default function Projects({ darkMode = true, setDarkMode }) {
       let projectsList = []
       
       if (projectsResponse.data?.results) {
-        // Format: { success: true, data: { results: [...] } }
         projectsList = projectsResponse.data.results
       } else if (projectsResponse.data && Array.isArray(projectsResponse.data)) {
-        // Format: { success: true, data: [...] }
         projectsList = projectsResponse.data
       } else if (projectsResponse.results) {
-        // Format: { results: [...] }
         projectsList = projectsResponse.results
       } else if (Array.isArray(projectsResponse)) {
-        // Format: [...]
         projectsList = projectsResponse
       } else {
         console.warn('⚠️ Unexpected projects response format:', projectsResponse)
@@ -83,6 +90,43 @@ export default function Projects({ darkMode = true, setDarkMode }) {
     } finally {
       setLoading(false)
     }
+  }
+
+  const handleArchiveProject = async (projectId, e) => {
+    e.stopPropagation()
+    
+    if (!confirm('Are you sure you want to archive this project?')) {
+      return
+    }
+
+    try {
+      setArchiving(projectId)
+      await projectService.archive(workspaceId, projectId)
+      
+      // Remove from list or refetch
+      setProjects(projects.filter(p => p.id !== projectId))
+      setActiveMenu(null)
+      
+      // Show success message (you can add a toast notification here)
+      console.log('✅ Project archived successfully')
+    } catch (err) {
+      console.error('❌ Error archiving project:', err)
+      alert(err.response?.data?.message || 'Failed to archive project')
+    } finally {
+      setArchiving(null)
+    }
+  }
+
+  const handleEditProject = (projectId, e) => {
+    e.preventDefault()
+    e.stopPropagation()
+    navigate(`/workspaces/${workspaceId}/projects/${projectId}/update`)  
+    setActiveMenu(null)
+}
+
+  const toggleMenu = (projectId, e) => {
+    e.stopPropagation()
+    setActiveMenu(activeMenu === projectId ? null : projectId)
   }
 
   if (loading) {
@@ -129,15 +173,6 @@ export default function Projects({ darkMode = true, setDarkMode }) {
           </div>
         </div>
 
-        {/* Debug Info */}
-        <div className="mb-4 p-3 rounded-lg bg-blue-500/10 border border-blue-500/30 text-blue-400 text-xs">
-          <p>📊 Debug Info:</p>
-          <p>Workspace ID: {workspaceId}</p>
-          <p>Workspace Name: {workspace?.name || 'Not loaded'}</p>
-          <p>Projects loaded: {projects.length}</p>
-          <p>API URL: {import.meta.env.VITE_API_URL}/workspaces/{workspaceId}/projects/</p>
-        </div>
-
         {/* Error */}
         {error && (
           <div className="mb-6 p-4 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 text-sm">
@@ -177,8 +212,13 @@ export default function Projects({ darkMode = true, setDarkMode }) {
             {projects.map((project) => (
               <div
                 key={project.id}
-                onClick={() => navigate(`/workspaces/${workspaceId}/projects/${project.id}`)}
-                className={`${cardBg} backdrop-blur-xl border ${borderColor} rounded-2xl p-6 hover:border-blue-500 transition cursor-pointer group relative overflow-hidden`}
+                onClick={(e) => {
+                    if (e.defaultPrevented) return
+                    navigate(`/workspaces/${workspaceId}/projects/${project.id}`)
+                  }}
+                className={`${cardBg} backdrop-blur-xl border ${borderColor} rounded-2xl p-6 hover:border-blue-500 transition cursor-pointer group relative overflow-hidden ${
+                  archiving === project.id ? 'opacity-50 pointer-events-none' : ''
+                }`}
               >
                 {/* Color Accent */}
                 <div 
@@ -202,6 +242,39 @@ export default function Projects({ darkMode = true, setDarkMode }) {
                       <p className={`text-sm ${textSecondary} line-clamp-2`}>
                         {project.description || 'No description'}
                       </p>
+                    </div>
+                    
+                    {/* Menu Button */}
+                    <div className="relative">
+                      <button
+                        onClick={(e) => toggleMenu(project.id, e)}
+                        className={`p-2 rounded-lg ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'} transition opacity-0 group-hover:opacity-100`}
+                      >
+                        <MoreVertical size={18} className={textSecondary} />
+                      </button>
+
+                      {/* Dropdown Menu */}
+                      {activeMenu === project.id && (
+                        <div 
+                          className={`absolute right-0 top-full mt-2 w-48 ${cardBg} border ${borderColor} rounded-xl shadow-xl py-2 z-10`}
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <button
+                            onClick={(e) => handleEditProject(project.id, e)}
+                            className={`w-full px-4 py-2 text-left flex items-center gap-3 ${textPrimary} hover:bg-blue-500/10 transition text-sm`}
+                          >
+                            <Edit2 size={16} />
+                            Edit Project
+                          </button>
+                          <button
+                            onClick={(e) => handleArchiveProject(project.id, e)}
+                            className={`w-full px-4 py-2 text-left flex items-center gap-3 text-orange-400 hover:bg-orange-500/10 transition text-sm`}
+                          >
+                            <Archive size={16} />
+                            Archive Project
+                          </button>
+                        </div>
+                      )}
                     </div>
                   </div>
 
