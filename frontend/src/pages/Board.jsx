@@ -1,6 +1,23 @@
 import React, { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { ArrowLeft, Plus, MoreVertical, Calendar, MessageSquare, Paperclip, Users, Filter, Search, X } from 'lucide-react'
+import {
+  DndContext,
+  closestCorners,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragOverlay,
+} from '@dnd-kit/core'
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  horizontalListSortingStrategy,
+} from '@dnd-kit/sortable'
+import { useSortable } from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 import Layout from '../components/Layout'
 import { projectService } from '../services/projectService'
 import axios from '../api/axios'
@@ -15,6 +32,7 @@ export default function Board({ darkMode = true, setDarkMode }) {
   const [error, setError] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
   const [showMobileMenu, setShowMobileMenu] = useState(false)
+  const [activeId, setActiveId] = useState(null)
   
   const [showAddColumn, setShowAddColumn] = useState(false)
   const [showAddTask, setShowAddTask] = useState(false)
@@ -38,6 +56,15 @@ export default function Board({ darkMode = true, setDarkMode }) {
     due_date: '',
     assignee_id: null
   })
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      distance: 8,
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  )
 
   const cardBg = darkMode ? 'bg-gray-800/50' : 'bg-white'
   const textPrimary = darkMode ? 'text-white' : 'text-gray-900'
@@ -250,6 +277,106 @@ export default function Board({ darkMode = true, setDarkMode }) {
     }
   }
 
+  const handleDragStart = (event) => {
+    setActiveId(event.active.id)
+  }
+
+  const handleDragEnd = async (event) => {
+    const { active, over } = event
+    setActiveId(null)
+
+    if (!over) return
+
+    const activeId = String(active.id)
+    const overId = String(over.id)
+
+    if (activeId === overId) return
+
+    // Parse IDs: format is "task-{taskId}" or "column-{columnId}"
+    const isActiveTask = activeId.startsWith('task-')
+
+    if (!isActiveTask) return // Only allow dragging tasks
+
+    const taskId = parseInt(activeId.replace('task-', ''))
+    
+    // Find the task and its current column
+    let taskToMove = null
+    let sourceColumnId = null
+    
+    for (const column of columns) {
+      const task = column.tasks.find(t => t.id === taskId)
+      if (task) {
+        taskToMove = task
+        sourceColumnId = column.id
+        break
+      }
+    }
+
+    if (!taskToMove) return
+
+    // Determine target column and position
+    let targetColumnId = null
+    const isOverTask = overId.startsWith('task-')
+
+    if (isOverTask) {
+      // Drop over another task - find which column contains it
+      const overTaskId = parseInt(overId.replace('task-', ''))
+      for (const column of columns) {
+        if (column.tasks.some(t => t.id === overTaskId)) {
+          targetColumnId = column.id
+          break
+        }
+      }
+    } else if (overId.startsWith('column-')) {
+      // Drop directly over a column
+      targetColumnId = parseInt(overId.replace('column-', ''))
+    }
+
+    if (!targetColumnId) return
+
+    // Get target column info to determine new status
+    const targetColumn = columns.find(c => c.id === targetColumnId)
+    if (!targetColumn) return
+
+    // Determine new status based on target column name
+    const normalize = (s) => (s || '').toString().toLowerCase().replace(/[-_\s]/g, '')
+    const colName = normalize(targetColumn.name || targetColumn.title)
+    let newStatus = taskToMove.status
+    
+    if (['todo'].includes(colName)) newStatus = 'todo'
+    else if (['inprogress', 'in-progress', 'in progress'].includes(colName)) newStatus = 'in-progress'
+    else if (['done', 'completed'].includes(colName)) newStatus = 'done'
+
+    // Optimistically update UI - move task to new column with new status
+    const newColumns = columns.map(col => ({
+      ...col,
+      tasks: col.tasks.filter(t => t.id !== taskId)
+    }))
+
+    // Add task to target column with updated status
+    const targetColIndex = newColumns.findIndex(c => c.id === targetColumnId)
+    if (targetColIndex !== -1) {
+      newColumns[targetColIndex].tasks.push({ ...taskToMove, status: newStatus })
+    }
+
+    setColumns(newColumns)
+
+    // Update on backend
+    try {
+      await projectService.updateTask(
+        workspaceId,
+        projectId,
+        sourceColumnId,
+        taskId,
+        { status: newStatus }
+      )
+    } catch (err) {
+      console.error('Failed to update task status:', err)
+      // Revert on error by reloading
+      await fetchProjectData()
+    }
+  }
+
   const priorityColors = {
     high: 'border-l-red-500',
     medium: 'border-l-yellow-500',
@@ -267,177 +394,239 @@ export default function Board({ darkMode = true, setDarkMode }) {
     return colors[index % colors.length]
   }
 
-  const TaskCard = ({ task }) => (
-    <div 
-      onClick={() => {
-        setSelectedTask(task)
-        setEditTaskData({
-          title: task.title,
-          description: task.description || '',
-          priority: task.priority || 'medium',
-          status: task.status || 'todo',
-          due_date: task.due_date || '',
-          assignee_id: task.assignee?.id || null
-        })
-        setShowTaskDetail(true)
-      }}
-      className={`${cardBg} backdrop-blur-xl border ${borderColor} border-l-4 ${priorityColors[task.priority] || priorityColors.medium} rounded-xl p-3 md:p-4 mb-3 hover:shadow-lg transition-all cursor-pointer group`}
-    >
-      <div className="flex items-start justify-between mb-2 md:mb-3">
-        <span className={`text-xs px-2 py-1 rounded ${priorityBadges[task.priority] || priorityBadges.medium}`}>
-          {task.priority || 'medium'}
-        </span>
-        <button 
-          onClick={(e) => {
-            e.stopPropagation()
-          }}
-          className={`p-1 rounded ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'} opacity-0 group-hover:opacity-100 transition`}
-        >
-          <MoreVertical size={14} className={textSecondary} />
-        </button>
-      </div>
+  const TaskCard = ({ task }) => {
+    const {
+      attributes,
+      listeners,
+      setNodeRef,
+      transform,
+      transition,
+      isDragging,
+    } = useSortable({ id: `task-${task.id}` })
 
-      <h4 className={`font-semibold ${textPrimary} mb-2 group-hover:text-blue-400 transition text-sm md:text-base`}>
-        {task.title}
-      </h4>
-      {task.description && (
-        <p className={`text-xs md:text-sm ${textSecondary} mb-3 line-clamp-2`}>
-          {task.description}
-        </p>
-      )}
+    const style = {
+      transform: CSS.Transform.toString(transform),
+      transition,
+      opacity: isDragging ? 0.5 : 1,
+    }
 
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2 md:gap-3 text-xs">
-          {task.comments_count > 0 && (
-            <span className={`flex items-center gap-1 ${textSecondary}`}>
-              <MessageSquare size={12} />
-              {task.comments_count}
-            </span>
-          )}
-          {task.attachments_count > 0 && (
-            <span className={`flex items-center gap-1 ${textSecondary}`}>
-              <Paperclip size={12} />
-              {task.attachments_count}
-            </span>
-          )}
-          {task.due_date && (
-            <span className={`flex items-center gap-1 ${textSecondary} hidden sm:flex`}>
-              <Calendar size={12} />
-              {new Date(task.due_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-            </span>
-          )}
-        </div>
+    const handleCardClick = (e) => {
+      // Prevent opening edit modal if drag is in progress
+      if (isDragging) return
+      
+      setSelectedTask(task)
+      setEditTaskData({
+        title: task.title,
+        description: task.description || '',
+        priority: task.priority || 'medium',
+        status: task.status || 'todo',
+        due_date: task.due_date || '',
+        assignee_id: task.assignee?.id || null
+      })
+      setShowTaskDetail(true)
+    }
 
-        {task.assignee && (
-          <div 
-            className={`w-5 h-5 md:w-6 md:h-6 rounded-full ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} border-2 ${darkMode ? 'border-gray-800' : 'border-white'} flex items-center justify-center text-xs`}
-            title={task.assignee.full_name || task.assignee.email}
-          >
-            {task.assignee.avatar || task.assignee.full_name?.charAt(0).toUpperCase() || '👤'}
-          </div>
-        )}
-      </div>
-    </div>
-  )
-
-  const Column = ({ column, index }) => (
-    <div className={`flex-shrink-0 w-72 md:w-80`}>
-      <div className={`${cardBg} backdrop-blur-xl border ${borderColor} rounded-xl p-3 md:p-4 mb-4 sticky top-0`}>
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <h3 className={`font-semibold ${getColumnColor(index)} text-sm md:text-base`}>
-              {column.name || column.title}
-            </h3>
-            <span className={`text-xs px-2 py-0.5 rounded-full ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} ${textSecondary}`}>
-              {/* show count for tasks that belong to this column by status when column matches a workflow status */}
-              {(() => {
-                try {
-                  const normalize = (s) => (s || '').toString().toLowerCase().replace(/[-_\s]/g, '')
-                  const name = normalize(column.name || column.title)
-                  const statusMap = {
-                    'todo': ['todo'],
-                    'inprogress': ['inprogress', 'in-progress', 'in progress'],
-                    'done': ['done', 'completed']
-                  }
-                  const matched = Object.entries(statusMap).find(([, variants]) => variants.some(v => normalize(v) === name))
-                  if (matched) {
-                    const statusKey = matched[0] === 'inprogress' ? 'in-progress' : matched[0]
-                    const allTasks = (columns || []).flatMap(c => c.tasks || [])
-                    return allTasks.filter(t => (t.status || 'todo') === statusKey).length
-                  }
-                } catch (e) {
-                  return column.tasks?.length || 0
-                }
-                return column.tasks?.length || 0
-              })()}
-            </span>
-          </div>
+    return (
+      <div
+        ref={setNodeRef}
+        style={style}
+        {...attributes}
+        {...listeners}
+        onClick={handleCardClick}
+        className={`${cardBg} backdrop-blur-xl border ${borderColor} border-l-4 ${priorityColors[task.priority] || priorityColors.medium} rounded-xl p-3 md:p-4 mb-3 hover:shadow-lg transition-all cursor-grab active:cursor-grabbing group`}
+      >
+        <div className="flex items-start justify-between mb-2 md:mb-3">
+          <span className={`text-xs px-2 py-1 rounded ${priorityBadges[task.priority] || priorityBadges.medium}`}>
+            {task.priority || 'medium'}
+          </span>
           <button 
-            onClick={() => {
-              setSelectedColumn(column)
-              setShowAddTask(true)
+            onClick={(e) => {
+              e.stopPropagation()
             }}
-            className={`p-1 rounded ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'} transition`}
+            className={`p-1 rounded ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'} opacity-0 group-hover:opacity-100 transition`}
           >
-            <Plus size={16} className={textSecondary} />
+            <MoreVertical size={14} className={textSecondary} />
           </button>
         </div>
-      </div>
 
-      <div className="space-y-0">
-        {(() => {
-          // If this column corresponds to a workflow status (todo, in-progress, done)
-          // show tasks filtered by task.status across all columns. Otherwise show column.tasks.
-          try {
-            const normalize = (s) => (s || '').toString().toLowerCase().replace(/[-_\s]/g, '')
-            const name = normalize(column.name || column.title)
-            const statusMap = {
-              'todo': ['todo'],
-              'inprogress': ['inprogress', 'in-progress', 'in progress'],
-              'done': ['done', 'completed']
-            }
-            const matched = Object.entries(statusMap).find(([, variants]) => variants.some(v => normalize(v) === name))
-            if (matched) {
-              const statusKey = matched[0] === 'inprogress' ? 'in-progress' : matched[0]
-              const allTasks = (columns || []).flatMap(c => c.tasks || [])
-              const tasksToShow = allTasks.filter(t => (t.status || 'todo') === statusKey)
-              if (tasksToShow.length > 0) {
-                return tasksToShow.map(task => <TaskCard key={task.id} task={task} />)
+        <h4 className={`font-semibold ${textPrimary} mb-2 group-hover:text-blue-400 transition text-sm md:text-base`}>
+          {task.title}
+        </h4>
+        {task.description && (
+          <p className={`text-xs md:text-sm ${textSecondary} mb-3 line-clamp-2`}>
+            {task.description}
+          </p>
+        )}
+
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2 md:gap-3 text-xs">
+            {task.comments_count > 0 && (
+              <span className={`flex items-center gap-1 ${textSecondary}`}>
+                <MessageSquare size={12} />
+                {task.comments_count}
+              </span>
+            )}
+            {task.attachments_count > 0 && (
+              <span className={`flex items-center gap-1 ${textSecondary}`}>
+                <Paperclip size={12} />
+                {task.attachments_count}
+              </span>
+            )}
+            {task.due_date && (
+              <span className={`flex items-center gap-1 ${textSecondary} hidden sm:flex`}>
+                <Calendar size={12} />
+                {new Date(task.due_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+              </span>
+            )}
+          </div>
+
+          {task.assignee && (
+            <div 
+              className={`w-5 h-5 md:w-6 md:h-6 rounded-full ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} border-2 ${darkMode ? 'border-gray-800' : 'border-white'} flex items-center justify-center text-xs`}
+              title={task.assignee.full_name || task.assignee.email}
+            >
+              {task.assignee.avatar || task.assignee.full_name?.charAt(0).toUpperCase() || '👤'}
+            </div>
+          )}
+        </div>
+      </div>
+    )
+  }
+
+  const Column = ({ column, index }) => {
+    const {
+      setNodeRef,
+      isOver,
+    } = useSortable({ 
+      id: `column-${column.id}`,
+      disabled: true // Disable sorting for columns themselves
+    })
+
+    const taskIds = (() => {
+      try {
+        const normalize = (s) => (s || '').toString().toLowerCase().replace(/[-_\s]/g, '')
+        const name = normalize(column.name || column.title)
+        const statusMap = {
+          'todo': ['todo'],
+          'inprogress': ['inprogress', 'in-progress', 'in progress'],
+          'done': ['done', 'completed']
+        }
+        const matched = Object.entries(statusMap).find(([, variants]) => variants.some(v => normalize(v) === name))
+        if (matched) {
+          const statusKey = matched[0] === 'inprogress' ? 'in-progress' : matched[0]
+          const allTasks = (columns || []).flatMap(c => c.tasks || [])
+          return allTasks.filter(t => (t.status || 'todo') === statusKey).map(t => `task-${t.id}`)
+        }
+      } catch (e) {
+        // fallthrough
+      }
+      return (column.tasks || []).map(t => `task-${t.id}`)
+    })()
+
+    return (
+      <div 
+        ref={setNodeRef}
+        className={`flex-shrink-0 w-72 md:w-80 transition-colors ${isOver ? 'bg-blue-500/5 rounded-xl' : ''}`}
+      >
+        <div className={`${cardBg} backdrop-blur-xl border ${borderColor} rounded-xl p-3 md:p-4 mb-4 sticky top-0`}>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <h3 className={`font-semibold ${getColumnColor(index)} text-sm md:text-base`}>
+                {column.name || column.title}
+              </h3>
+              <span className={`text-xs px-2 py-0.5 rounded-full ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} ${textSecondary}`}>
+                {/* show count for tasks that belong to this column by status when column matches a workflow status */}
+                {(() => {
+                  try {
+                    const normalize = (s) => (s || '').toString().toLowerCase().replace(/[-_\s]/g, '')
+                    const name = normalize(column.name || column.title)
+                    const statusMap = {
+                      'todo': ['todo'],
+                      'inprogress': ['inprogress', 'in-progress', 'in progress'],
+                      'done': ['done', 'completed']
+                    }
+                    const matched = Object.entries(statusMap).find(([, variants]) => variants.some(v => normalize(v) === name))
+                    if (matched) {
+                      const statusKey = matched[0] === 'inprogress' ? 'in-progress' : matched[0]
+                      const allTasks = (columns || []).flatMap(c => c.tasks || [])
+                      return allTasks.filter(t => (t.status || 'todo') === statusKey).length
+                    }
+                  } catch (e) {
+                    return column.tasks?.length || 0
+                  }
+                  return column.tasks?.length || 0
+                })()}
+              </span>
+            </div>
+            <button 
+              onClick={() => {
+                setSelectedColumn(column)
+                setShowAddTask(true)
+              }}
+              className={`p-1 rounded ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'} transition`}
+            >
+              <Plus size={16} className={textSecondary} />
+            </button>
+          </div>
+        </div>
+
+        <SortableContext items={taskIds} strategy={horizontalListSortingStrategy}>
+          <div className="space-y-0">
+            {(() => {
+              // If this column corresponds to a workflow status (todo, in-progress, done)
+              // show tasks filtered by task.status across all columns. Otherwise show column.tasks.
+              try {
+                const normalize = (s) => (s || '').toString().toLowerCase().replace(/[-_\s]/g, '')
+                const name = normalize(column.name || column.title)
+                const statusMap = {
+                  'todo': ['todo'],
+                  'inprogress': ['inprogress', 'in-progress', 'in progress'],
+                  'done': ['done', 'completed']
+                }
+                const matched = Object.entries(statusMap).find(([, variants]) => variants.some(v => normalize(v) === name))
+                if (matched) {
+                  const statusKey = matched[0] === 'inprogress' ? 'in-progress' : matched[0]
+                  const allTasks = (columns || []).flatMap(c => c.tasks || [])
+                  const tasksToShow = allTasks.filter(t => (t.status || 'todo') === statusKey)
+                  if (tasksToShow.length > 0) {
+                    return tasksToShow.map(task => <TaskCard key={task.id} task={task} />)
+                  }
+                  return (
+                    <div className={`text-center py-8 ${textSecondary} text-xs`}>
+                      No tasks yet
+                    </div>
+                  )
+                }
+              } catch (e) {
+                // fallthrough to default
               }
-              return (
+
+              return column.tasks && column.tasks.length > 0 ? (
+                column.tasks.map((task) => (
+                  <TaskCard key={task.id} task={task} />
+                ))
+              ) : (
                 <div className={`text-center py-8 ${textSecondary} text-xs`}>
                   No tasks yet
                 </div>
               )
-            }
-          } catch (e) {
-            // fallthrough to default
-          }
+            })()}
+          </div>
+        </SortableContext>
 
-          return column.tasks && column.tasks.length > 0 ? (
-            column.tasks.map((task) => (
-              <TaskCard key={task.id} task={task} />
-            ))
-          ) : (
-            <div className={`text-center py-8 ${textSecondary} text-xs`}>
-              No tasks yet
-            </div>
-          )
-        })()}
+        <button 
+          onClick={() => {
+            setSelectedColumn(column)
+            setShowAddTask(true)
+          }}
+          className={`w-full py-2 md:py-3 rounded-xl ${darkMode ? 'bg-gray-700/30' : 'bg-gray-50'} border-2 border-dashed ${borderColor} ${textSecondary} hover:${textPrimary} hover:border-blue-500 transition flex items-center justify-center gap-2 text-sm`}
+        >
+          <Plus size={16} />
+          Add Task
+        </button>
       </div>
-
-      <button 
-        onClick={() => {
-          setSelectedColumn(column)
-          setShowAddTask(true)
-        }}
-        className={`w-full py-2 md:py-3 rounded-xl ${darkMode ? 'bg-gray-700/30' : 'bg-gray-50'} border-2 border-dashed ${borderColor} ${textSecondary} hover:${textPrimary} hover:border-blue-500 transition flex items-center justify-center gap-2 text-sm`}
-      >
-        <Plus size={16} />
-        Add Task
-      </button>
-    </div>
-  )
+    )
+  }
 
   if (loading) {
     return (
@@ -502,31 +691,46 @@ export default function Board({ darkMode = true, setDarkMode }) {
         </div>
 
         {/* Kanban Board */}
-        <div className="overflow-x-auto pb-6 -mx-4 px-4 md:mx-0 md:px-0">
-          <div className="flex gap-3 md:gap-6 min-w-max">
-            {columns.length > 0 ? (
-              <>
-                {columns.map((column, index) => (
-                  <Column key={column.id} column={column} index={index} />
-                ))}
-                <div className="flex-shrink-0 w-72 md:w-80">
-                  <button onClick={() => setShowAddColumn(true)} className={`w-full h-32 rounded-xl border-2 border-dashed ${borderColor} ${textSecondary} hover:${textPrimary} hover:border-blue-500 transition flex flex-col items-center justify-center gap-2`}>
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCorners}
+          onDragStart={handleDragStart}
+          onDragEnd={handleDragEnd}
+        >
+          <div className="overflow-x-auto pb-6 -mx-4 px-4 md:mx-0 md:px-0">
+            <div className="flex gap-3 md:gap-6 min-w-max">
+              {columns.length > 0 ? (
+                <>
+                  {columns.map((column, index) => (
+                    <Column key={column.id} column={column} index={index} />
+                  ))}
+                  <div className="flex-shrink-0 w-72 md:w-80">
+                    <button onClick={() => setShowAddColumn(true)} className={`w-full h-32 rounded-xl border-2 border-dashed ${borderColor} ${textSecondary} hover:${textPrimary} hover:border-blue-500 transition flex flex-col items-center justify-center gap-2`}>
+                      <Plus size={20} />
+                      <span className="font-medium text-sm">Add Column</span>
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <div className={`${cardBg} backdrop-blur-xl border ${borderColor} rounded-2xl p-12 text-center w-full`}>
+                  <p className={`${textSecondary} mb-4`}>No columns yet. Create your first column to get started!</p>
+                  <button onClick={() => setShowAddColumn(true)} className="bg-gradient-to-r from-blue-500 to-purple-500 text-white px-6 py-3 rounded-xl hover:opacity-90 transition inline-flex items-center gap-2">
                     <Plus size={20} />
-                    <span className="font-medium text-sm">Add Column</span>
+                    Create Column
                   </button>
                 </div>
-              </>
-            ) : (
-              <div className={`${cardBg} backdrop-blur-xl border ${borderColor} rounded-2xl p-12 text-center w-full`}>
-                <p className={`${textSecondary} mb-4`}>No columns yet. Create your first column to get started!</p>
-                <button onClick={() => setShowAddColumn(true)} className="bg-gradient-to-r from-blue-500 to-purple-500 text-white px-6 py-3 rounded-xl hover:opacity-90 transition inline-flex items-center gap-2">
-                  <Plus size={20} />
-                  Create Column
-                </button>
-              </div>
-            )}
+              )}
+            </div>
           </div>
-        </div>
+
+          <DragOverlay>
+            {activeId ? (
+              <div className={`${cardBg} backdrop-blur-xl border ${borderColor} border-l-4 border-l-blue-500 rounded-xl p-3 md:p-4 w-72 md:w-80 shadow-2xl`}>
+                <p className={`${textPrimary} font-semibold`}>Moving task...</p>
+              </div>
+            ) : null}
+          </DragOverlay>
+        </DndContext>
 
         {/* Add Column Modal */}
         {showAddColumn && (
