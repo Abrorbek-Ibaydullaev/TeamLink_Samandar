@@ -55,12 +55,15 @@ class ProjectViewSet(viewsets.ModelViewSet):
             return ProjectUpdateSerializer
         return ProjectSerializer
 
-    def perform_create(self, serializer):
+    def create(self, request, *args, **kwargs):
+        """Override create to return the full project data with ID"""
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
         project = serializer.save()
 
         # Log activity
         ActivityLog.log_activity(
-            user=self.request.user,
+            user=request.user,
             action='create',
             entity_type='project',
             entity_id=project.id,
@@ -68,6 +71,10 @@ class ProjectViewSet(viewsets.ModelViewSet):
             workspace=project.workspace,
             project=project
         )
+
+        # Return the full project data using ProjectSerializer
+        response_serializer = ProjectSerializer(project)
+        return Response(response_serializer.data, status=status.HTTP_201_CREATED)
 
     def perform_update(self, serializer):
         project = serializer.save()

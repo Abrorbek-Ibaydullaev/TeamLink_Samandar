@@ -86,27 +86,42 @@ export default function CreateProject({ darkMode = true, setDarkMode }) {
 
       console.log('Creating project:', projectData)
       const projectResponse = await projectService.create(workspaceId, projectData)
-      const projectId = projectResponse.id
+      console.log('✅ Project response:', projectResponse)
 
-      console.log('✅ Project created:', projectId)
+      // Handle different possible response structures
+      const projectId = projectResponse.id || projectResponse._id || projectResponse.data?.id
 
-      if (members.length > 0) {
-        console.log('Adding members:', members)
-        for (const userId of members) {
-          try {
-            await projectService.addMember(projectId, userId)
-          } catch (memberError) {
-            console.error('Error adding member:', userId, memberError)
-          }
-        }
+      if (!projectId) {
+        console.error('❌ No project ID in response:', projectResponse)
+        throw new Error('Project created but no ID returned from server')
       }
 
+      console.log('✅ Project created with ID:', projectId)
+
+      // Add members if any were selected
+      if (members.length > 0) {
+        console.log('Adding members:', members)
+        const memberPromises = members.map(async (userId) => {
+          try {
+            await projectService.addMember(projectId, userId)
+            console.log('✅ Added member:', userId)
+          } catch (memberError) {
+            console.error('❌ Error adding member:', userId, memberError)
+          }
+        })
+        
+        // Wait for all member additions to complete
+        await Promise.allSettled(memberPromises)
+      }
+
+      // Navigate to the project page
       navigate(`/workspaces/${workspaceId}/projects/${projectId}`)
     } catch (err) {
       console.error('Error creating project:', err)
       const errorMsg = err.response?.data?.message || 
                       err.response?.data?.error ||
                       err.response?.data?.detail ||
+                      err.message ||
                       'Failed to create project. Please try again.'
       setError(errorMsg)
     } finally {
