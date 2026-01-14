@@ -61,6 +61,21 @@ class ProjectViewSet(viewsets.ModelViewSet):
         serializer.is_valid(raise_exception=True)
         project = serializer.save()
 
+        # Create default columns for new project
+        default_columns = [
+            {'name': 'To Do', 'color': '#3B82F6', 'position': 0},
+            {'name': 'In Progress', 'color': '#8B5CF6', 'position': 1},
+            {'name': 'Done', 'color': '#10B981', 'position': 2},
+        ]
+        
+        for column_data in default_columns:
+            Column.objects.create(
+                project=project,
+                name=column_data['name'],
+                color=column_data['color'],
+                position=column_data['position']
+            )
+
         # Log activity
         ActivityLog.log_activity(
             user=request.user,
