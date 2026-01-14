@@ -29,8 +29,14 @@ class ProjectViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
-        workspace_id = self.request.query_params.get('workspace')
-
+        
+        # FIRST: Try to get workspace_id from URL parameter (for nested routes like /workspaces/{id}/projects/)
+        workspace_id = self.kwargs.get('workspace_pk')  # Changed from workspace_id to workspace_pk
+        
+        # SECOND: If not in URL, check query parameters (for top-level routes like /projects/?workspace=xxx)
+        if not workspace_id:
+            workspace_id = self.request.query_params.get('workspace')
+        
         # Get projects where user is a workspace member
         queryset = Project.objects.filter(
             workspace__memberships__user=user,
@@ -47,6 +53,7 @@ class ProjectViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(is_archived=False)
 
         return queryset.distinct().select_related('workspace', 'created_by').prefetch_related('columns', 'project_members__user')
+
 
     def get_serializer_class(self):
         if self.action == 'create':
