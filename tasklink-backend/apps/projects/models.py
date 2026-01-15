@@ -56,7 +56,7 @@ class Column(models.Model):
     class Meta:
         db_table = 'columns'
         ordering = ['position']
-        unique_together = ['project', 'name']
+        # unique_together = ['project', 'name']
         indexes = [
             models.Index(fields=['project', 'position']),
         ]

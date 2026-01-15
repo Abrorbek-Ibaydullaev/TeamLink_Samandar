@@ -75,13 +75,6 @@ class ProjectViewSet(viewsets.ModelViewSet):
             {'name': 'Done', 'color': '#10B981', 'position': 2},
         ]
         
-        for column_data in default_columns:
-            Column.objects.create(
-                project=project,
-                name=column_data['name'],
-                color=column_data['color'],
-                position=column_data['position']
-            )
 
         # Log activity
         ActivityLog.log_activity(
