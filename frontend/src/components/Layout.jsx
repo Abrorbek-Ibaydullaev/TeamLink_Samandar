@@ -21,11 +21,11 @@ export default function Layout({ children, darkMode, setDarkMode }) {
   const navItems = [
     { path: '/dashboard', icon: Home, label: 'Dashboard' },
     { path: '/workspaces', icon: FolderKanban, label: 'Workspaces' },
-    { path: '/workspaces', icon: Plus, label: 'New Project' },
+    // { path: '/workspaces', icon: Plus, label: 'New Project' },
   ]
 
   return (
-    <div className={`${bgClass} ${textPrimary} min-h-screen transition-colors duration-300`}>
+    <div className={`${bgClass} ${textPrimary} min-h-screen transition-colors duration-300 flex flex-col`}>
       {/* Modern Header */}
       <header className={`${cardBg} backdrop-blur-xl border-b ${borderColor} sticky top-0 z-50`}>
         <div className="container mx-auto px-6 py-4">
@@ -52,11 +52,10 @@ export default function Layout({ children, darkMode, setDarkMode }) {
                   <Link
                     key={item.path}
                     to={item.path}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-xl transition-all ${
-                      isActive
-                        ? `${darkMode ? 'bg-blue-500/20' : 'bg-blue-50'} text-blue-400`
-                        : `${textSecondary} hover:${darkMode ? 'bg-gray-700/50' : 'bg-gray-100'}`
-                    }`}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-xl transition-all ${isActive
+                      ? `${darkMode ? 'bg-blue-500/20' : 'bg-blue-50'} text-blue-400`
+                      : `${textSecondary} hover:${darkMode ? 'bg-gray-700/50' : 'bg-gray-100'}`
+                      }`}
                   >
                     <Icon size={18} />
                     <span className="font-medium hidden md:inline">{item.label}</span>
@@ -96,7 +95,7 @@ export default function Layout({ children, darkMode, setDarkMode }) {
                 <button className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center text-white font-bold">
                   A
                 </button>
-                
+
                 {/* Dropdown Menu */}
                 <div className={`absolute right-0 mt-2 w-48 ${cardBg} backdrop-blur-xl border ${borderColor} rounded-xl shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all`}>
                   <div className="p-3 border-b border-gray-700">
@@ -121,7 +120,7 @@ export default function Layout({ children, darkMode, setDarkMode }) {
       </header>
 
       {/* Main Content */}
-      <main className="container mx-auto px-6 py-8">
+      <main className="container mx-auto px-6 py-8 flex-1">
         {children}
       </main>
 
