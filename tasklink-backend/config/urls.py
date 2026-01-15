@@ -9,15 +9,16 @@
 
 #     path('api/auth/', include('apps.authentication.urls')),
 #     path('api/workspaces/', include('apps.workspaces.urls')),
+    
+#     # Single projects endpoint - handles both top-level and nested
 #     path('api/projects/', include('apps.projects.urls')),
+    
+#     # Workspace-specific projects (this will also work with the updated viewset)
 #     path('api/workspaces/<uuid:workspace_id>/projects/',
 #          include('apps.projects.urls')),
+    
 #     path('api/tasks/', include('apps.tasks.urls')),
 #     path('api/chat/', include('apps.chat.urls')),
-#     # path('api/files/', include('apps.files.urls')),
-#     # path('api/notifications/', include('apps.notifications.urls')),
-#     # path('api/activity/', include('apps.activity.urls')),
-
 #     path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
 # ]
 
@@ -27,6 +28,7 @@
 #                           document_root=settings.MEDIA_ROOT)
 #     urlpatterns += static(settings.STATIC_URL,
 #                           document_root=settings.STATIC_ROOT)
+
 
 
 from django.contrib import admin
@@ -41,12 +43,9 @@ urlpatterns = [
     path('api/auth/', include('apps.authentication.urls')),
     path('api/workspaces/', include('apps.workspaces.urls')),
     
-    # Single projects endpoint - handles both top-level and nested
-    path('api/projects/', include('apps.projects.urls')),
-    
-    # Workspace-specific projects (this will also work with the updated viewset)
-    path('api/workspaces/<uuid:workspace_id>/projects/',
-         include('apps.projects.urls')),
+    # ✅ Projects URLs - mounted at /api/
+    # This will handle ALL project-related URLs including dashboard
+    path('api/', include('apps.projects.urls')),
     
     path('api/tasks/', include('apps.tasks.urls')),
     path('api/chat/', include('apps.chat.urls')),

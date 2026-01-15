@@ -2,7 +2,7 @@ from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
-from django.db.models import Q
+from django.db.models import Q, Count
 from django.contrib.auth import get_user_model
 
 from .models import Project, Column, ProjectMember
@@ -75,6 +75,13 @@ class ProjectViewSet(viewsets.ModelViewSet):
             {'name': 'Done', 'color': '#10B981', 'position': 2},
         ]
         
+        # for column_data in default_columns:
+        #     Column.objects.create(
+        #         project=project,
+        #         name=column_data['name'],
+        #         color=column_data['color'],
+        #         position=column_data['position']
+        #     )
 
         # Log activity
         ActivityLog.log_activity(
@@ -294,31 +301,31 @@ class ProjectViewSet(viewsets.ModelViewSet):
             is_archived=False
         ).distinct()
 
-        # Get active tasks assigned to user
-        active_tasks = Task.objects.filter(
-            assignee=user,
-            status__in=['todo', 'in-progress', 'review']
-        ).select_related('project', 'column')[:10]
-
-        # Get total stats
+        # Get all tasks from user's projects
         total_tasks = Task.objects.filter(
             project__workspace__memberships__user=user,
             project__workspace__memberships__is_active=True
         )
 
+        # Calculate task statistics
+        active_tasks = total_tasks.filter(
+            status__in=['todo', 'in-progress', 'review']
+        ).count()
+        
+        completed_tasks = total_tasks.filter(status='done').count()
+        
+        # NEW: Get tasks by status for dashboard stats
         tasks_in_progress = total_tasks.filter(status='in-progress').count()
-        total_completed = total_tasks.filter(status='done').count()
-        total_active = total_tasks.filter(
-            status__in=['todo', 'in-progress', 'review']).count()
+        tasks_todo = total_tasks.filter(status='todo').count()
 
-        # Get team members count
+        # Get team members count (users in same workspaces)
         team_members = User.objects.filter(
-            memberships__workspace__projects=projects,
+            memberships__workspace__projects__in=projects,
             memberships__is_active=True
         ).distinct().count()
 
-        # Get recent projects
-        recent_projects = projects.order_by('-created_at')[:3]
+        # Get recent projects (last 5)
+        recent_projects = projects.order_by('-created_at')[:5]
 
         # Get recent activity
         from apps.activity.models import ActivityLog
@@ -326,26 +333,34 @@ class ProjectViewSet(viewsets.ModelViewSet):
             user=user
         ).select_related('user', 'workspace', 'project').order_by('-created_at')[:5]
 
-        # Format response
+        # Format response to match frontend dashboard
         dashboard_data = {
             'stats': {
-                'active_tasks': total_active,
+                'active_tasks': active_tasks,  # All non-completed tasks
                 'team_members': team_members,
                 'projects': projects.count(),
-                'completed_tasks': total_completed,
+                'completed_tasks': completed_tasks,
+                # Add these for percentage changes (you can calculate real changes later)
+                'active_tasks_change': '+12%',
+                'team_members_change': '+2',
+                'projects_change': '+3',
+                'completed_change': '+18%',
+                # Additional stats for more detailed dashboard
                 'tasks_in_progress': tasks_in_progress,
+                'tasks_todo': tasks_todo,
             },
-            'active_projects': ProjectSerializer(recent_projects, many=True).data,
-            'active_tasks': [
+            'active_projects': [
                 {
-                    'id': str(task.id),
-                    'title': task.title,
-                    'project': task.project.name,
-                    'priority': task.priority,
-                    'status': task.status,
-                    'due_date': task.due_date,
+                    'id': str(project.id),
+                    'name': project.name,
+                    'description': project.description,
+                    'workspace': str(project.workspace_id),
+                    'members_count': project.project_members.count(),
+                    'tasks_count': project.tasks.count(),
+                    'created_at': project.created_at,
+                    'updated_at': project.updated_at,
                 }
-                for task in active_tasks
+                for project in recent_projects
             ],
             'recent_activity': [
                 {
@@ -360,6 +375,66 @@ class ProjectViewSet(viewsets.ModelViewSet):
         }
 
         return Response(dashboard_data)
+    
+    @action(detail=False, methods=['get'], url_path='dashboard/stats')
+    def dashboard_stats(self, request):
+        """Get only dashboard statistics"""
+        user = request.user
+
+        # Get projects the user is part of
+        projects = Project.objects.filter(
+            workspace__memberships__user=user,
+            workspace__memberships__is_active=True,
+            is_archived=False
+        ).distinct()
+
+        # Get all tasks from user's projects
+        total_tasks = Task.objects.filter(
+            project__workspace__memberships__user=user,
+            project__workspace__memberships__is_active=True
+        )
+
+        # Calculate statistics
+        active_tasks = total_tasks.filter(
+            status__in=['todo', 'in-progress', 'review']
+        ).count()
+        
+        completed_tasks = total_tasks.filter(status='done').count()
+        
+        # Get team members count
+        team_members = User.objects.filter(
+            memberships__workspace__projects__in=projects,
+            memberships__is_active=True
+        ).distinct().count()
+
+        return Response({
+            'active_tasks': active_tasks,
+            'team_members': team_members,
+            'projects': projects.count(),
+            'completed_tasks': completed_tasks,
+            'active_tasks_change': '+12%',
+            'team_members_change': '+2',
+            'projects_change': '+3',
+            'completed_change': '+18%',
+        })
+
+    @action(detail=False, methods=['get'], url_path='dashboard/active-projects')
+    def dashboard_active_projects(self, request):
+        """Get active projects for dashboard"""
+        user = request.user
+        
+        projects = Project.objects.filter(
+            workspace__memberships__user=user,
+            workspace__memberships__is_active=True,
+            is_archived=False
+        ).annotate(
+            members_count=Count('project_members'),
+            tasks_count=Count('tasks')
+        ).order_by('-created_at')[:5]  # Last 5 projects
+        
+        from .serializers import ProjectSerializer
+        serializer = ProjectSerializer(projects, many=True)
+        return Response(serializer.data)
 
 
 class ColumnViewSet(viewsets.ModelViewSet):
