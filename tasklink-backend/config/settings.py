@@ -12,7 +12,10 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = config(
     'SECRET_KEY', default='django-insecure-change-this-in-production')
 DEBUG = config('DEBUG', default=True, cast=bool)
-ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='*').split(',')
+ALLOWED_HOSTS = config(
+    'ALLOWED_HOSTS',
+    default='teamlink-samandar-1.onrender.com,localhost,127.0.0.1'
+).split(',')
 
 
 # Application definition
@@ -228,10 +231,10 @@ CORS_ALLOW_HEADERS = [
 # File upload settings
 MAX_UPLOAD_SIZE = config('MAX_UPLOAD_SIZE_MB', default=10,
                          cast=int) * 1024 * 1024  # MB to bytes
-ALLOWED_FILE_EXTENSIONS = config(
-    'ALLOWED_FILE_EXTENSIONS',
-    default='pdf,doc,docx,xls,xlsx,txt,png,jpg,jpeg,gif'
-).split(',')
+# ALLOWED_FILE_EXTENSIONS = config(
+#     'ALLOWED_FILE_EXTENSIONS',
+#     default='pdf,doc,docx,xls,xlsx,txt,png,jpg,jpeg,gif'
+# ).split(',')
 
 # Email settings
 EMAIL_BACKEND = config(
