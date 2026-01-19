@@ -4,12 +4,8 @@ from decouple import config
 from pathlib import Path
 import os
 from datetime import timedelta
+import dj_database_url
 
-# Build paths inside the project like this: BASE_DIR / 'subdir'.
-BASE_DIR = Path(__file__).resolve().parent.parent
-
-
-# Build paths inside the project
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 # Security settings
@@ -78,32 +74,27 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'config.wsgi.application'
 ASGI_APPLICATION = 'config.asgi.application'
-# Database
-# https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
-# if config('USE_MYSQL', default=True, cast=bool):
-#     DATABASES = {
-#         'default': {
-#             'ENGINE': 'django.db.backends.mysql',
-#             'NAME': config('MYSQL_DATABASE', default='teamlink'),
-#             'USER': config('MYSQL_USER', default='root'),
-#             'PASSWORD': config('MYSQL_PASSWORD', default=''),
-#             'HOST': config('MYSQL_HOST', default='localhost'),
-#             'PORT': config('MYSQL_PORT', default='3306'),
-#             'OPTIONS': {
-#                 'init_command': "SET sql_mode='STRICT_TRANS_TABLES'",
-#                 'charset': 'utf8mb4',
-#             },
-#         }
-#     }
-# else:
-# SQLite for local development
+import os
+from pathlib import Path
+import dj_database_url
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
+
+BASE_DIR = Path(__file__).resolve().parent.parent
+
+SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "fallback-secret")
+DEBUG = os.getenv("DEBUG", "False") == "True"
+ALLOWED_HOSTS = ["*"]  
+
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        # 'NAME': BASE_DIR / 'db.sqlite3',
-        "NAME": BASE_DIR / "db.sqlite3",
-    }
+    "default": dj_database_url.config(
+        default=os.getenv("DATABASE_URL"),
+        conn_max_age=600,
+        ssl_require=True  # Render requires SSL
+    )
 }
 
 CHANNEL_LAYERS = {
