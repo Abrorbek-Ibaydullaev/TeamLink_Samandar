@@ -137,6 +137,7 @@ CSRF_TRUSTED_ORIGINS = [
     "https://teamlink2-cscq072xp-samandars-projects-ed180c19.vercel.app",
 ]
 CORS_ALLOW_CREDENTIALS = True
+CORS_ALLOW_ALL_ORIGINS = True
 # Internationalization
 # https://docs.djangoproject.com/en/5.2/topics/i18n/
 
