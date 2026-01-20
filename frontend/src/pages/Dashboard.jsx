@@ -11,10 +11,10 @@ export default function Dashboard({ darkMode = true, setDarkMode }) {
     teamMembers: 0,
     projects: 0,
     completedTasks: 0,
-    activeTasksChange: '+0%',
-    teamMembersChange: '+0',
-    projectsChange: '+0',
-    completedChange: '+0%'
+    // activeTasksChange: '+0%',
+    // teamMembersChange: '+0',
+    // projectsChange: '+0',
+    // completedChange: '+0%'
   })
   const [activeProjects, setActiveProjects] = useState([])
   const [user, setUser] = useState({
@@ -61,10 +61,10 @@ export default function Dashboard({ darkMode = true, setDarkMode }) {
           teamMembers: statsData.team_members || 0,
           projects: statsData.projects || 0,
           completedTasks: statsData.completed_tasks || 0,
-          activeTasksChange: statsData.active_tasks_change || '+0%',
-          teamMembersChange: statsData.team_members_change || '+0',
-          projectsChange: statsData.projects_change || '+0',
-          completedChange: statsData.completed_change || '+0%'
+          // activeTasksChange: statsData.active_tasks_change || '+0%',
+          // teamMembersChange: statsData.team_members_change || '+0',
+          // projectsChange: statsData.projects_change || '+0',
+          // completedChange: statsData.completed_change || '+0%'
         })
         
         // Fetch active projects
@@ -84,10 +84,10 @@ export default function Dashboard({ darkMode = true, setDarkMode }) {
           teamMembers: 0,
           projects: 0,
           completedTasks: 0,
-          activeTasksChange: '+0%',
-          teamMembersChange: '+0',
-          projectsChange: '+0',
-          completedChange: '+0%'
+          // activeTasksChange: '+0%',
+          // teamMembersChange: '+0',
+          // projectsChange: '+0',
+          // completedChange: '+0%'
         })
         setActiveProjects([])
       }
