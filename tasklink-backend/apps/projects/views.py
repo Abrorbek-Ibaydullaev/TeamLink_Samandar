@@ -341,10 +341,10 @@ class ProjectViewSet(viewsets.ModelViewSet):
                 'projects': projects.count(),
                 'completed_tasks': completed_tasks,
                 # Add these for percentage changes (you can calculate real changes later)
-                'active_tasks_change': '+12%',
-                'team_members_change': '+2',
-                'projects_change': '+3',
-                'completed_change': '+18%',
+                # 'active_tasks_change': '+12%',
+                # 'team_members_change': '+2',
+                # 'projects_change': '+3',
+                # 'completed_change': '+18%',
                 # Additional stats for more detailed dashboard
                 'tasks_in_progress': tasks_in_progress,
                 'tasks_todo': tasks_todo,
@@ -412,10 +412,10 @@ class ProjectViewSet(viewsets.ModelViewSet):
             'team_members': team_members,
             'projects': projects.count(),
             'completed_tasks': completed_tasks,
-            'active_tasks_change': '+12%',
-            'team_members_change': '+2',
-            'projects_change': '+3',
-            'completed_change': '+18%',
+            # 'active_tasks_change': '+12%',
+            # 'team_members_change': '+2',
+            # 'projects_change': '+3',
+            # 'completed_change': '+18%',
         })
 
     @action(detail=False, methods=['get'], url_path='dashboard/active-projects')
